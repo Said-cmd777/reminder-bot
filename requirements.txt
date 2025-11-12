@@ -6,10 +6,12 @@ pyTelegramBotAPI>=4.0.0
 # Scheduler للجدولة
 APScheduler>=3.10.0
 
+# SQLAlchemy (مطلوب لـ SQLAlchemyJobStore في APScheduler)
+SQLAlchemy>=2.0.0
+
 # Database (مدمج في Python)
 # sqlite3
 
 # Environment variables (اختياري - لتسهيل استخدام ملف .env)
 python-dotenv>=1.0.0
-SQLAlchemy>=1.4
 
