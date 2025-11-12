@@ -11,4 +11,5 @@ APScheduler>=3.10.0
 
 # Environment variables (اختياري - لتسهيل استخدام ملف .env)
 python-dotenv>=1.0.0
+SQLAlchemy>=1.4
 
