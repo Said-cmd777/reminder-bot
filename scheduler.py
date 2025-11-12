@@ -12,11 +12,18 @@ from datetime import datetime, timedelta
 from typing import Optional
 
 from apscheduler.schedulers.background import BackgroundScheduler
-from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from apscheduler.jobstores.base import JobLookupError
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
+
+# جعل SQLAlchemyJobStore اختياري - إذا لم يكن متاحاً، سنستخدم MemoryJobStore
+try:
+    from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
+    SQLALCHEMY_AVAILABLE = True
+except ImportError:
+    SQLALCHEMY_AVAILABLE = False
+    logger.warning("SQLAlchemy غير متاح - سيتم استخدام MemoryJobStore بدلاً من SQLAlchemyJobStore")
 
 scheduler_bot = None  # سيعيّن عند تهيئة SchedulerManager
 
@@ -161,7 +168,7 @@ class SchedulerManager:
         self.use_persistent_jobstore = bool(use_persistent_jobstore)
 
         jobstores = {}
-        if self.use_persistent_jobstore:
+        if self.use_persistent_jobstore and SQLALCHEMY_AVAILABLE:
             try:
                 url = f"sqlite:///{os.path.abspath(self.jobs_db)}"
                 jobstores['default'] = SQLAlchemyJobStore(url=url)
@@ -170,6 +177,8 @@ class SchedulerManager:
                 logger.exception("SchedulerManager: failed to use SQLAlchemyJobStore, falling back to MemoryJobStore")
                 jobstores = None
         else:
+            if self.use_persistent_jobstore and not SQLALCHEMY_AVAILABLE:
+                logger.warning("SchedulerManager: SQLAlchemy غير متاح - سيتم استخدام MemoryJobStore")
             jobstores = None
 
         if jobstores:
