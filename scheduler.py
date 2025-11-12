@@ -13,6 +13,7 @@ from typing import Optional
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.jobstores.base import JobLookupError
+from apscheduler.jobstores.memory import MemoryJobStore
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
@@ -167,24 +168,21 @@ class SchedulerManager:
         self.jobs_db = jobs_db
         self.use_persistent_jobstore = bool(use_persistent_jobstore)
 
-        jobstores = {}
+        # تحديد نوع jobstore المستخدم
         if self.use_persistent_jobstore and SQLALCHEMY_AVAILABLE:
             try:
                 url = f"sqlite:///{os.path.abspath(self.jobs_db)}"
-                jobstores['default'] = SQLAlchemyJobStore(url=url)
+                jobstores = {'default': SQLAlchemyJobStore(url=url)}
                 logger.info("SchedulerManager: using SQLAlchemyJobStore at %s", self.jobs_db)
             except Exception:
                 logger.exception("SchedulerManager: failed to use SQLAlchemyJobStore, falling back to MemoryJobStore")
-                jobstores = None
+                jobstores = {'default': MemoryJobStore()}
         else:
             if self.use_persistent_jobstore and not SQLALCHEMY_AVAILABLE:
                 logger.warning("SchedulerManager: SQLAlchemy غير متاح - سيتم استخدام MemoryJobStore")
-            jobstores = None
+            jobstores = {'default': MemoryJobStore()}
 
-        if jobstores:
-            self.scheduler = BackgroundScheduler(jobstores=jobstores, job_defaults={'coalesce': False, 'max_instances': 5})
-        else:
-            self.scheduler = BackgroundScheduler(job_defaults={'coalesce': False, 'max_instances': 5})
+        self.scheduler = BackgroundScheduler(jobstores=jobstores, job_defaults={'coalesce': False, 'max_instances': 5})
 
         self.scheduler.start()
         logger.info("Scheduler started (in-memory or persistent depending on availability).")
@@ -223,12 +221,12 @@ class SchedulerManager:
         remind_spec = None
         try:
             # دعم sqlite3.Row و dict
-            remind_spec = hw_row['reminders'] if 'reminders' in hw_row.keys() else None
-        except Exception:
-            try:
+            if hasattr(hw_row, 'keys'):
+                remind_spec = hw_row.get('reminders') if 'reminders' in hw_row.keys() else None
+            else:
                 remind_spec = hw_row.get('reminders')
-            except Exception:
-                remind_spec = None
+        except Exception:
+            remind_spec = None
 
         if not remind_spec:
             remind_spec = "3,2,1"
