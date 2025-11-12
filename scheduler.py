@@ -1,0 +1,326 @@
+# scheduler.py
+"""
+Scheduler manager — يدير جدولة التذكيرات والنسخ الاحتياطي بطريقة مستديمة (SQLAlchemyJobStore) أو ذاكرة.
+أُضيف هنا معامل use_persistent_jobstore ليتوافق مع ما قد يمرره bot.py.
+"""
+
+import os
+import shutil
+import sqlite3
+import logging
+from datetime import datetime, timedelta
+from typing import Optional
+
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
+from apscheduler.jobstores.base import JobLookupError
+
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
+
+scheduler_bot = None  # سيعيّن عند تهيئة SchedulerManager
+
+def send_hw_reminder(hw_id: int, days_before: int, db_path: str):
+    global scheduler_bot
+    try:
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM homeworks WHERE id = ?", (hw_id,))
+        row = cur.fetchone()
+        if not row:
+            conn.close()
+            logger.info("send_hw_reminder: no row for hw_id=%s", hw_id)
+            return
+        # لا نحتاج للتحقق من done العام - سنتحقق من حالة كل مستخدم على حدة
+
+        subject = row['subject']
+        due_at = row['due_at']
+        description = row['description'] or ""
+        conditions = row['conditions'] or "-"
+        pdf_type = row['pdf_type']
+        pdf_value = row['pdf_value']
+        target_chat = row['chat_id']
+        target_user = None
+        try:
+            target_user_val = row['target_user_id']
+            # التحقق من أن القيمة ليست None وليست NULL
+            if target_user_val is not None:
+                target_user = int(target_user_val)
+        except (KeyError, TypeError, ValueError):
+            target_user = None
+
+        text = (f"⏰ تذكير قبل {days_before} يوم/أيام من موعد الواجب\n"
+                f"المادة: {subject}\n"
+                f"الموعد: {due_at}\n"
+                f"الوصف: {description}\n"
+                f"الشروط: {conditions}\n"
+                f"ID: {hw_id}")
+
+        # تحديد المستلمين: إذا كان target_user_id محدداً، أرسل له فقط
+        # وإذا كان None، أرسل لجميع المستخدمين المسجلين
+        if target_user is not None:
+            recipients = [target_user]
+            logger.info("send_hw_reminder: sending to specific user_id=%s", target_user)
+        else:
+            # الحصول على جميع المستخدمين المسجلين
+            try:
+                cur.execute("SELECT user_id FROM users")
+                user_rows = cur.fetchall()
+                recipients = [r[0] for r in user_rows if r[0] is not None]
+                if not recipients:
+                    # إذا لم يوجد مستخدمون مسجلون، أرسل للـ chat_id كبديل
+                    logger.warning("send_hw_reminder: no registered users found, sending to chat_id=%s", target_chat)
+                    recipients = [target_chat]
+                else:
+                    logger.info("send_hw_reminder: sending to %d registered users (all users)", len(recipients))
+            except Exception as e:
+                logger.exception("send_hw_reminder: failed to get registered users, falling back to chat_id")
+                recipients = [target_chat]
+
+        for recip in recipients:
+            try:
+                if scheduler_bot is None:
+                    logger.error("send_hw_reminder: scheduler_bot غير مضبوط — لا أستطيع الإرسال")
+                    continue
+                
+                # التحقق من أن المستخدم لم يكمل الواجب بعد
+                # (فقط للمستخدمين، وليس للـ chat_id)
+                if isinstance(recip, int) and recip > 0:  # user_id (موجب)
+                    cur.execute("SELECT 1 FROM homework_completions WHERE hw_id = ? AND user_id = ?", (hw_id, recip))
+                    if cur.fetchone() is not None:
+                        logger.info("send_hw_reminder: user_id=%s already completed hw_id=%s, skipping", recip, hw_id)
+                        continue
+                    
+                    # التحقق من إعدادات الإشعارات للمستخدم (homework reminders)
+                    try:
+                        from db import get_notification_setting
+                        # Note: We need to use a new connection since we're inside scheduler
+                        # We can reuse the existing conn, but we need to ensure row_factory is set
+                        # Since we're already using conn, we can use it directly
+                        # But to be safe, let's use the same connection
+                        if not get_notification_setting(conn, recip, 'homework_reminders'):
+                            logger.info("send_hw_reminder: user_id=%s disabled homework_reminders, skipping", recip)
+                            continue
+                    except Exception as notif_err:
+                        logger.warning("send_hw_reminder: failed to check notification settings for user_id=%s: %s", recip, notif_err)
+                        # Continue sending if check fails (default behavior)
+                
+                scheduler_bot.send_message(recip, text)
+                if pdf_type == "file_id" and pdf_value:
+                    try:
+                        scheduler_bot.send_document(recip, pdf_value)
+                    except Exception:
+                        logger.exception("Failed to send document file_id for hw_id=%s", hw_id)
+                elif pdf_type == "url" and pdf_value:
+                    try:
+                        from telebot import types as _types
+                        kb = _types.InlineKeyboardMarkup()
+                        kb.add(_types.InlineKeyboardButton("ملف الواجب (رابط)", url=pdf_value))
+                        scheduler_bot.send_message(recip, "ملف الواجب:", reply_markup=kb)
+                    except Exception:
+                        logger.exception("Failed to send pdf url for hw_id=%s", hw_id)
+                logger.info("send_hw_reminder: sent hw_id=%s to recip=%s", hw_id, recip)
+            except Exception as e:
+                logger.exception("send_hw_reminder: failed to send hw_id=%s to recip=%s — %s", hw_id, recip, e)
+        conn.close()
+    except Exception:
+        logger.exception("send_hw_reminder: unexpected error for hw_id=%s", hw_id)
+
+
+def backup_db_once(db_path: str, backup_dir: str):
+    try:
+        if not os.path.exists(backup_dir):
+            os.makedirs(backup_dir, exist_ok=True)
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        dest = os.path.join(backup_dir, f"reminders_backup_{ts}.db")
+        shutil.copy2(db_path, dest)
+        logger.info("backup_db_once: Database backed up to %s", dest)
+    except Exception:
+        logger.exception("backup_db_once: failed to backup database")
+
+
+class SchedulerManager:
+    def __init__(self,
+                 bot,
+                 db_path: str = "reminders.db",
+                 backup_dir: str = "backups",
+                 jobs_db: str = "jobs.sqlite",
+                 use_persistent_jobstore: bool = True):
+        """
+        bot: telebot.TeleBot instance
+        use_persistent_jobstore: إذا True يحاول استخدام SQLAlchemyJobStore (jobs_db)،
+                                وإلا يستخدم MemoryJobStore.
+        """
+        global scheduler_bot
+        scheduler_bot = bot
+
+        self.db_path = db_path
+        self.backup_dir = backup_dir
+        self.jobs_db = jobs_db
+        self.use_persistent_jobstore = bool(use_persistent_jobstore)
+
+        jobstores = {}
+        if self.use_persistent_jobstore:
+            try:
+                url = f"sqlite:///{os.path.abspath(self.jobs_db)}"
+                jobstores['default'] = SQLAlchemyJobStore(url=url)
+                logger.info("SchedulerManager: using SQLAlchemyJobStore at %s", self.jobs_db)
+            except Exception:
+                logger.exception("SchedulerManager: failed to use SQLAlchemyJobStore, falling back to MemoryJobStore")
+                jobstores = None
+        else:
+            jobstores = None
+
+        if jobstores:
+            self.scheduler = BackgroundScheduler(jobstores=jobstores, job_defaults={'coalesce': False, 'max_instances': 5})
+        else:
+            self.scheduler = BackgroundScheduler(job_defaults={'coalesce': False, 'max_instances': 5})
+
+        self.scheduler.start()
+        logger.info("Scheduler started (in-memory or persistent depending on availability).")
+
+    def remove_hw_jobs(self, hw_id: int):
+        for days in range(0, 366):
+            jid = f"hw-{hw_id}-{days}"
+            try:
+                self.scheduler.remove_job(jid)
+            except JobLookupError:
+                continue
+            except Exception:
+                logger.exception("remove_hw_jobs: failed removing job %s", jid)
+
+    def schedule_homework_reminders(self, hw_row):
+        try:
+            hw_id = hw_row['id']
+        except Exception:
+            logger.error("schedule_homework_reminders: invalid hw_row, missing id")
+            return
+
+        try:
+            if hw_row['done'] == 1:
+                self.remove_hw_jobs(hw_id)
+                logger.info("schedule_homework_reminders: hw_id=%s already done -> removed jobs", hw_id)
+                return
+        except Exception:
+            pass
+
+        try:
+            due = datetime.strptime(hw_row['due_at'], "%Y-%m-%d %H:%M")
+        except Exception:
+            logger.exception("schedule_homework_reminders: invalid due_at for hw_id=%s", hw_id)
+            return
+
+        remind_spec = None
+        try:
+            # دعم sqlite3.Row و dict
+            remind_spec = hw_row['reminders'] if 'reminders' in hw_row.keys() else None
+        except Exception:
+            try:
+                remind_spec = hw_row.get('reminders')
+            except Exception:
+                remind_spec = None
+
+        if not remind_spec:
+            remind_spec = "3,2,1"
+
+        offsets = []
+        for part in str(remind_spec).split(","):
+            p = part.strip()
+            if not p:
+                continue
+            try:
+                v = int(p)
+                if 0 <= v <= 3650:
+                    offsets.append(v)
+            except Exception:
+                continue
+        if not offsets:
+            offsets = [3, 2, 1]
+
+        now = datetime.now()
+        for days_before in offsets:
+            try:
+                run_dt = due - timedelta(days=days_before)
+            except Exception:
+                logger.exception("schedule_homework_reminders: invalid timedelta for hw_id=%s days_before=%s", hw_id, days_before)
+                continue
+
+            if run_dt <= now:
+                logger.debug("schedule_homework_reminders: skipping past run for hw_id=%s days_before=%s (run_dt=%s)", hw_id, days_before, run_dt)
+                continue
+
+            job_id = f"hw-{hw_id}-{days_before}"
+            try:
+                self.scheduler.remove_job(job_id)
+            except JobLookupError:
+                pass
+            except Exception:
+                pass
+
+            try:
+                callable_ref = f"{__name__}:send_hw_reminder"
+                self.scheduler.add_job(callable_ref, 'date', run_date=run_dt, args=[hw_id, days_before, self.db_path], id=job_id, replace_existing=True)
+                logger.info("Scheduled job %s at %s", job_id, run_dt)
+            except Exception:
+                logger.exception("Failed to add scheduler job %s", job_id)
+
+    def schedule_daily_backup(self, hour: int = 3, minute: int = 0):
+        try:
+            job_id = "backup_db_daily"
+            callable_ref = f"{__name__}:backup_db_once"
+            self.scheduler.add_job(callable_ref, 'cron', hour=hour, minute=minute, args=[self.db_path, self.backup_dir], id=job_id, replace_existing=True)
+            logger.info("Scheduled daily backup (cron) at %02d:%02d", hour, minute)
+            return True
+        except Exception:
+            logger.exception("Failed to schedule daily backup")
+            return False
+
+    def backup_db_once(self):
+        try:
+            backup_db_once(self.db_path, self.backup_dir)
+        except Exception:
+            logger.exception("backup_db_once wrapper failed")
+
+    def bootstrap_all(self):
+        try:
+            conn = sqlite3.connect(self.db_path)
+            conn.row_factory = sqlite3.Row
+            cur = conn.cursor()
+            
+            # Bootstrap homework reminders
+            cur.execute("SELECT * FROM homeworks WHERE done = 0")
+            rows = cur.fetchall()
+            for r in rows:
+                try:
+                    self.schedule_homework_reminders(r)
+                except Exception:
+                    logger.exception("schedule error for row id %s", r['id'] if 'id' in r.keys() else "<unknown>")
+            
+            # Bootstrap custom reminders
+            try:
+                cur.execute("SELECT * FROM custom_reminders")
+                custom_reminders = cur.fetchall()
+                from datetime import datetime
+                now = datetime.now()
+                for cr in custom_reminders:
+                    try:
+                        reminder_dt = datetime.strptime(cr['reminder_datetime'], "%Y-%m-%d %H:%M")
+                        if reminder_dt > now:
+                            reminder_id = cr['id']
+                            user_id = cr['user_id']
+                            job_id = f"custom_reminder-{reminder_id}"
+                            callable_ref = "handlers:_job_send_custom_reminder"
+                            self.scheduler.add_job(callable_ref, 'date', run_date=reminder_dt, args=[reminder_id, user_id], id=job_id, replace_existing=True)
+                            logger.info("Bootstrap: scheduled custom reminder %s at %s", reminder_id, reminder_dt)
+                    except Exception:
+                        logger.exception("Failed to bootstrap custom reminder id %s", cr.get('id', '<unknown>'))
+            except Exception:
+                logger.exception("Failed to bootstrap custom reminders")
+            
+            conn.close()
+            backup_db_once(self.db_path, self.backup_dir)
+            self.schedule_daily_backup(hour=3, minute=0)
+            logger.info("Bootstrap completed — scheduled existing reminders and backups.")
+        except Exception:
+            logger.exception("Failed during bootstrap_all")
