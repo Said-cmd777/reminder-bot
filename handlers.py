@@ -1781,6 +1781,12 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
             try:
                 from weekly_schedule import format_weekly_schedule
                 schedule_text = format_weekly_schedule(group_number)
+                
+                # التحقق من أن النص غير فارغ قبل الإرسال
+                if not schedule_text or not schedule_text.strip():
+                    logger.warning(f"format_weekly_schedule returned empty text for group {group_number}")
+                    schedule_text = f"📅 الجدول الأسبوعي الكامل - Group {group_number}\n\nلا توجد حصص مسجلة لهذه المجموعة.\n\nيرجى إضافة الحصص من قائمة الإدارة (Admin)."
+                
                 bot.send_message(chat_id, schedule_text, reply_markup=main_menu_kb())
                 
                 # محاولة إرسال ملف PDF إذا كان موجوداً
@@ -1811,8 +1817,12 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
                     logger.warning(f"Failed to send PDF schedule: {pdf_error}")
                     
             except Exception as e:
-                logger.exception("Failed to get weekly schedule")
-                bot.send_message(chat_id, f"حدث خطأ في جلب الجدول الأسبوعي. راجع اللوغ.", reply_markup=main_menu_kb())
+                logger.exception(f"Failed to get weekly schedule for group {group_number}: {e}")
+                error_msg = f"حدث خطأ في جلب الجدول الأسبوعي لمجموعة {group_number}.\n\nالخطأ: {str(e)}\n\nيرجى التحقق من قاعدة البيانات أو الاتصال بالأدمين."
+                try:
+                    bot.send_message(chat_id, error_msg, reply_markup=main_menu_kb())
+                except Exception as send_error:
+                    logger.exception(f"Failed to send error message: {send_error}")
             bot.answer_callback_query(c.id)
             return
 

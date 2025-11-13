@@ -170,76 +170,102 @@ def get_group_schedule(group_number: str, day: str) -> List[Dict]:
                 # Process database classes
                 filtered_schedule = []
                 for cls in db_classes:
-                    cls_dict = dict(cls)
-                    
-                    # Check if alternating
-                    if cls_dict.get('is_alternating', 0):
-                        alternating_key = cls_dict.get('alternating_key')
-                        if alternating_key:
-                            # Get alternating week config
-                            config = get_alternating_week_config(conn, alternating_key)
-                            if config:
-                                ref_date = datetime.strptime(config['reference_date'], "%Y-%m-%d")
-                                today = datetime.now()
-                                days_diff = (today - ref_date).days
-                                week_number = (days_diff // 7) % 2
-                                
-                                # Group 1: Week 0 = has lab, Week 1 = no lab (normal logic)
-                                # Group 2: Week 0 = no lab, Week 1 = has lab (reversed logic)
-                                # Group 3: Week 0 = has lab, Week 1 = no lab (same as Group 1 - normal logic)
-                                # Group 4: Week 0 = no lab, Week 1 = has lab (same as Group 2 - reversed logic)
-                                if group_number in ["02", "04"]:
-                                    # Group 2 & 4: reversed logic (week 0 = no lab, week 1 = has lab)
-                                    if week_number != 1:
-                                        continue  # Skip this class (only show in week 1)
-                                else:
-                                    # Group 1, 3, and others: normal logic (week 0 = has lab, week 1 = no lab)
-                                    if week_number != 0:
-                                        continue  # Skip this class (only show in week 0)
-                    
-                    # Convert to format expected by rest of code
-                    entry = {
-                        "time": f"{cls_dict['time_start']}-{cls_dict['time_end']}",
-                        "course": cls_dict['course'],
-                        "location": cls_dict['location'],
-                        "type": cls_dict['class_type'],
-                        "alternating": bool(cls_dict.get('is_alternating', 0)),
-                        "alternating_key": cls_dict.get('alternating_key')
-                    }
-                    filtered_schedule.append(entry)
+                    try:
+                        cls_dict = dict(cls)
+                        
+                        # Check if alternating
+                        if cls_dict.get('is_alternating', 0):
+                            alternating_key = cls_dict.get('alternating_key')
+                            if alternating_key:
+                                try:
+                                    # Get alternating week config
+                                    config = get_alternating_week_config(conn, alternating_key)
+                                    if config:
+                                        ref_date = datetime.strptime(config['reference_date'], "%Y-%m-%d")
+                                        today = datetime.now()
+                                        days_diff = (today - ref_date).days
+                                        week_number = (days_diff // 7) % 2
+                                        
+                                        # Group 1: Week 0 = has lab, Week 1 = no lab (normal logic)
+                                        # Group 2: Week 0 = no lab, Week 1 = has lab (reversed logic)
+                                        # Group 3: Week 0 = has lab, Week 1 = no lab (same as Group 1 - normal logic)
+                                        # Group 4: Week 0 = no lab, Week 1 = has lab (same as Group 2 - reversed logic)
+                                        if group_number in ["02", "04"]:
+                                            # Group 2 & 4: reversed logic (week 0 = no lab, week 1 = has lab)
+                                            if week_number != 1:
+                                                continue  # Skip this class (only show in week 1)
+                                        else:
+                                            # Group 1, 3, and others: normal logic (week 0 = has lab, week 1 = no lab)
+                                            if week_number != 0:
+                                                continue  # Skip this class (only show in week 0)
+                                except Exception as alt_error:
+                                    # إذا فشل التحقق من الحصة الدورية، نتخطاها
+                                    import logging
+                                    logging.warning(f"Failed to check alternating for class: {alt_error}")
+                                    continue
+                        
+                        # Convert to format expected by rest of code
+                        entry = {
+                            "time": f"{cls_dict['time_start']}-{cls_dict['time_end']}",
+                            "course": cls_dict['course'],
+                            "location": cls_dict['location'],
+                            "type": cls_dict['class_type'],
+                            "alternating": bool(cls_dict.get('is_alternating', 0)),
+                            "alternating_key": cls_dict.get('alternating_key')
+                        }
+                        filtered_schedule.append(entry)
+                    except Exception as cls_error:
+                        # إذا فشل معالجة حصة واحدة، نتخطاها ونكمل
+                        import logging
+                        logging.warning(f"Failed to process class entry: {cls_error}")
+                        continue
                 
                 return filtered_schedule
-    except Exception:
+    except Exception as db_error:
         # Fallback to hardcoded data
+        import logging
+        logging.warning(f"Failed to read from database, falling back to hardcoded data: {db_error}")
         pass
     
     # Fallback to hardcoded Group 1 schedule (only if database is empty)
-    if group_number == "01":
-        schedule = GROUP_1_SCHEDULE.get(day.lower(), [])
-        
-        # Filter alternating classes based on current week
-        # Group 1: Week 0 = has lab, Week 1 = no lab
-        filtered_schedule = []
-        for entry in schedule:
-            if entry.get("alternating", False):
-                alternating_key = entry.get("alternating_key", "")
-                if alternating_key == "algorithm1":
-                    if is_algorithm1_lab_week():  # Week 0
+    try:
+        if group_number == "01":
+            schedule = GROUP_1_SCHEDULE.get(day.lower(), [])
+            
+            # Filter alternating classes based on current week
+            # Group 1: Week 0 = has lab, Week 1 = no lab
+            filtered_schedule = []
+            for entry in schedule:
+                try:
+                    if entry.get("alternating", False):
+                        alternating_key = entry.get("alternating_key", "")
+                        if alternating_key == "algorithm1":
+                            if is_algorithm1_lab_week():  # Week 0
+                                filtered_schedule.append(entry)
+                        elif alternating_key == "statistics1":
+                            if is_statistics_lab_week():  # Week 0
+                                filtered_schedule.append(entry)
+                        else:
+                            # Fallback for other alternating classes
+                            filtered_schedule.append(entry)
+                    else:
                         filtered_schedule.append(entry)
-                elif alternating_key == "statistics1":
-                    if is_statistics_lab_week():  # Week 0
-                        filtered_schedule.append(entry)
-                else:
-                    # Fallback for other alternating classes
-                    filtered_schedule.append(entry)
-            else:
-                filtered_schedule.append(entry)
-        
-        return filtered_schedule
-    else:
-        # Other groups are read from database (should have been initialized)
-        # If database is empty, return empty list
-        # Note: Group 2 uses reversed logic (Week 0 = no lab, Week 1 = has lab)
+                except Exception as entry_error:
+                    # إذا فشل معالجة حصة واحدة، نتخطاها
+                    import logging
+                    logging.warning(f"Failed to process hardcoded entry: {entry_error}")
+                    # لا نستخدم continue هنا لأننا في حلقة for
+                    pass
+            
+            return filtered_schedule
+        else:
+            # Other groups are read from database (should have been initialized)
+            # If database is empty, return empty list
+            # Note: Group 2 uses reversed logic (Week 0 = no lab, Week 1 = has lab)
+            return []
+    except Exception as fallback_error:
+        import logging
+        logging.exception(f"Failed to get fallback schedule: {fallback_error}")
         return []
 
 
@@ -336,48 +362,82 @@ def format_single_class_message(entry: Dict, day_ar: str = None) -> str:
 
 def format_weekly_schedule(group_number: str) -> str:
     """Format full weekly schedule."""
-    text = f"📅 الجدول الأسبوعي الكامل - Group {group_number}\n\n"
-    
-    days_order = ["saturday", "sunday", "monday", "tuesday", "wednesday", "thursday", "friday"]
-    
-    for day in days_order:
-        day_ar = DAY_NAMES_AR[day]
-        schedule = get_group_schedule(group_number, day)
+    try:
+        text = f"📅 الجدول الأسبوعي الكامل - Group {group_number}\n\n"
         
-        if schedule:
-            text += f"📅 {day_ar}:\n"
-            for entry in schedule:
-                text += format_class_entry(entry) + "\n"
-            text += "\n"
-    
-    # Add note about alternating weeks (only if there are alternating classes)
-    has_alternating = False
-    for day in days_order:
-        schedule = get_group_schedule(group_number, day)
-        for entry in schedule:
-            if entry.get("alternating", False):
-                has_alternating = True
-                break
-        if has_alternating:
-            break
-    
-    if has_alternating:
-        text += "\n📌 ملاحظة:\n"
-        # Check if this group has alternating labs this week
-        if group_number in ["02", "04"]:
-            # Group 2 & 4: reversed logic (Week 0 = no lab, Week 1 = has lab)
-            algorithm1_has_lab = not is_algorithm1_lab_week()  # Reversed
-            statistics1_has_lab = not is_statistics_lab_week()  # Reversed
+        days_order = ["saturday", "sunday", "monday", "tuesday", "wednesday", "thursday", "friday"]
+        
+        has_any_schedule = False
+        for day in days_order:
+            try:
+                day_ar = DAY_NAMES_AR.get(day, day.capitalize())
+                schedule = get_group_schedule(group_number, day)
+                
+                if schedule:
+                    has_any_schedule = True
+                    text += f"📅 {day_ar}:\n"
+                    for entry in schedule:
+                        try:
+                            formatted_entry = format_class_entry(entry)
+                            text += formatted_entry + "\n"
+                        except Exception as entry_error:
+                            # إذا فشل تنسيق حصة واحدة، نتخطاها ونكمل
+                            import logging
+                            logging.warning(f"Failed to format entry for {day}: {entry_error}")
+                            continue
+                    text += "\n"
+            except Exception as day_error:
+                # إذا فشل جلب جدول يوم معين، نتخطاه ونكمل
+                import logging
+                logging.warning(f"Failed to get schedule for {day}: {day_error}")
+                continue
+        
+        # إذا لم توجد أي حصص، نضيف رسالة توضيحية
+        if not has_any_schedule:
+            text += "لا توجد حصص مسجلة لهذه المجموعة.\n\n"
+            text += "يرجى إضافة الحصص من قائمة الإدارة (Admin)."
         else:
-            # Group 1, 3, and others: normal logic (Week 0 = has lab, Week 1 = no lab)
-            algorithm1_has_lab = is_algorithm1_lab_week()
-            statistics1_has_lab = is_statistics_lab_week()
+            # Add note about alternating weeks (only if there are alternating classes)
+            has_alternating = False
+            try:
+                for day in days_order:
+                    try:
+                        schedule = get_group_schedule(group_number, day)
+                        for entry in schedule:
+                            if entry.get("alternating", False):
+                                has_alternating = True
+                                break
+                        if has_alternating:
+                            break
+                    except Exception:
+                        continue
+                
+                if has_alternating:
+                    text += "\n📌 ملاحظة:\n"
+                    # Check if this group has alternating labs this week
+                    if group_number in ["02", "04"]:
+                        # Group 2 & 4: reversed logic (Week 0 = no lab, Week 1 = has lab)
+                        algorithm1_has_lab = not is_algorithm1_lab_week()  # Reversed
+                        statistics1_has_lab = not is_statistics_lab_week()  # Reversed
+                    else:
+                        # Group 1, 3, and others: normal logic (Week 0 = has lab, Week 1 = no lab)
+                        algorithm1_has_lab = is_algorithm1_lab_week()
+                        statistics1_has_lab = is_statistics_lab_week()
+                    
+                    text += "• Laboratory Session Algorithm1 (الاثنين) دورية - هذا الأسبوع: "
+                    text += "✅ موجودة" if algorithm1_has_lab else "❌ غير موجودة"
+                    text += "\n"
+                    text += "• Laboratory Session Statistics1 (الخميس) دورية - هذا الأسبوع: "
+                    text += "✅ موجودة" if statistics1_has_lab else "❌ غير موجودة"
+            except Exception as alt_error:
+                # إذا فشل التحقق من الحصص الدورية، نتخطاه
+                import logging
+                logging.warning(f"Failed to check alternating classes: {alt_error}")
         
-        text += "• Laboratory Session Algorithm1 (الاثنين) دورية - هذا الأسبوع: "
-        text += "✅ موجودة" if algorithm1_has_lab else "❌ غير موجودة"
-        text += "\n"
-        text += "• Laboratory Session Statistics1 (الخميس) دورية - هذا الأسبوع: "
-        text += "✅ موجودة" if statistics1_has_lab else "❌ غير موجودة"
-    
-    return text
+        return text
+    except Exception as e:
+        # في حالة فشل كامل، نرجع رسالة خطأ واضحة
+        import logging
+        logging.exception(f"Failed to format weekly schedule for group {group_number}: {e}")
+        return f"📅 الجدول الأسبوعي الكامل - Group {group_number}\n\n❌ حدث خطأ في جلب الجدول.\n\nالخطأ: {str(e)}\n\nيرجى المحاولة مرة أخرى أو الاتصال بالأدمين."
 
