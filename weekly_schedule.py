@@ -1,9 +1,9 @@
-# weekly_schedule.py
+
 """Weekly schedule data and utilities for groups."""
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple, Any
 
-# Group 1 Schedule
+
 GROUP_1_SCHEDULE = {
     "saturday": [
         {"time": "08:00-09:30", "course": "Analysis1", "location": "Amphi H", "type": "Course"},
@@ -32,10 +32,10 @@ GROUP_1_SCHEDULE = {
     "thursday": [
         {"time": "08:00-11:10", "course": "Statistics1", "location": "LabE2.01", "type": "Laboratory Session", "alternating": True, "alternating_key": "statistics1"},
     ],
-    "friday": [],  # No classes on Friday
+    "friday": [],  
 }
 
-# Map English day names to Arabic
+
 DAY_NAMES_AR = {
     "saturday": "السبت",
     "sunday": "الأحد",
@@ -46,7 +46,7 @@ DAY_NAMES_AR = {
     "friday": "الجمعة",
 }
 
-# Map locations to Google Maps URLs
+
 LOCATION_MAPS = {
     "Amphi H": "https://maps.app.goo.gl/dVN1fct8vKn7qtCK9",
     "Room 395T": "https://maps.app.goo.gl/48W4CSMDsJ7BWZJT7",
@@ -60,7 +60,7 @@ LOCATION_MAPS = {
     "Amphi M": "https://maps.app.goo.gl/jgWiMD8QwpaFVxrBA",
 }
 
-# Map weekday numbers to day names (0=Monday, 6=Sunday in Python, but we use Saturday=0)
+
 WEEKDAY_TO_DAY = {
     0: "monday",
     1: "tuesday",
@@ -71,7 +71,7 @@ WEEKDAY_TO_DAY = {
     6: "sunday",
 }
 
-# Reverse mapping for our schedule (Saturday=0)
+
 SCHEDULE_DAY_TO_WEEKDAY = {
     "saturday": 5,
     "sunday": 6,
@@ -92,14 +92,14 @@ def get_current_week_number() -> int:
     - They will study Statistics lab this week (week 0)
     So both labs are in week 0, neither in week 1
     """
-    # Reference date: November 11, 2024 (Monday) - assuming this is week 0
-    # This week (week 0): has Algorithm1 lab AND Statistics lab
-    # Next week (week 1): no Algorithm1 lab, no Statistics lab
-    reference_date = datetime(2024, 11, 11)  # Monday
+    
+    
+    
+    reference_date = datetime(2024, 11, 11)  
     today = datetime.now()
     days_diff = (today - reference_date).days
     week_number = days_diff // 7
-    return week_number % 2  # 0 = has both labs, 1 = no labs
+    return week_number % 2  
 
 
 def is_algorithm1_lab_week() -> bool:
@@ -122,7 +122,7 @@ def is_statistics_lab_week() -> bool:
 def get_today_schedule_day() -> str:
     """Get today's day name in schedule format (saturday, sunday, etc.)."""
     today = datetime.now()
-    weekday = today.weekday()  # 0=Monday, 6=Sunday
+    weekday = today.weekday()  
     return WEEKDAY_TO_DAY[weekday]
 
 
@@ -140,14 +140,14 @@ def format_class_entry(entry: Dict) -> str:
     location = entry["location"]
     class_type = entry.get("type", "Class")
     
-    # Format based on type
+    
     if class_type == "Online Session":
         return f"🖥️ {time_str} - {course} ({location})"
     elif class_type == "Laboratory Session":
         return f"🔬 {time_str} - {class_type} {course} ({location})"
     elif class_type == "Tutorial Session":
         return f"📝 {time_str} - {class_type} {course} ({location})"
-    else:  # Course
+    else:  
         return f"📚 {time_str} - {course} ({location})"
 
 
@@ -158,7 +158,7 @@ def get_group_schedule(group_number: str, day: str) -> List[Dict]:
     Reads from database if available, falls back to hardcoded data.
     """
     try:
-        # Try to read from database first
+        
         from db_schedule import get_schedule_classes, get_alternating_week_config
         from db_utils import db_connection
         from datetime import datetime, timedelta
@@ -167,7 +167,7 @@ def get_group_schedule(group_number: str, day: str) -> List[Dict]:
             db_classes = get_schedule_classes(conn, group_number, day.lower())
             
             if db_classes:
-                # Process database classes
+                
                 filtered_schedule = []
                 for cls in db_classes:
                     try:
@@ -297,11 +297,11 @@ def get_tomorrow_schedule_entries(group_number: str) -> List[Dict]:
 
 def has_location_map(location: str) -> bool:
     """Check if location has a Google Maps URL (not online)."""
-    # Online sessions don't have physical locations
+    
     if "Online" in location or "Google Meet" in location:
         return False
     
-    # Try database first
+    
     try:
         from db_schedule import get_schedule_location
         from db_utils import db_connection
@@ -312,13 +312,13 @@ def has_location_map(location: str) -> bool:
     except Exception:
         pass
     
-    # Fallback to hardcoded maps
+    
     return location in LOCATION_MAPS
 
 
 def get_location_map_url(location: str) -> Optional[str]:
     """Get Google Maps URL for a location."""
-    # Try database first
+    
     try:
         from db_schedule import get_schedule_location
         from db_utils import db_connection
@@ -329,7 +329,7 @@ def get_location_map_url(location: str) -> Optional[str]:
     except Exception:
         pass
     
-    # Fallback to hardcoded maps
+    
     return LOCATION_MAPS.get(location, None)
 
 
@@ -341,20 +341,20 @@ def format_single_class_message(entry: Dict, day_ar: str = None) -> str:
     class_type = entry.get("type", "Class")
     day_ar = day_ar or entry.get("day_ar", "")
     
-    # Build message
+    
     if day_ar:
         text = f"📅 {day_ar}\n\n"
     else:
         text = ""
     
-    # Format based on type
+    
     if class_type == "Online Session":
         text += f"🖥️ {time_str}\n{course}\n{location}"
     elif class_type == "Laboratory Session":
         text += f"🔬 {time_str}\n{class_type} {course}\n{location}"
     elif class_type == "Tutorial Session":
         text += f"📝 {time_str}\n{class_type} {course}\n{location}"
-    else:  # Course
+    else:  
         text += f"📚 {time_str}\n{course}\n{location}"
     
     return text

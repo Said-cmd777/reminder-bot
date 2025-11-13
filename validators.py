@@ -1,4 +1,4 @@
-# validators.py
+
 """Input validation utilities."""
 
 from typing import Optional, Tuple
@@ -56,7 +56,7 @@ def validate_user_id(user_id_str: Optional[str]) -> Tuple[bool, Optional[int], O
     
     user_id_str = user_id_str.strip()
     if user_id_str.lower() in ("all", "none"):
-        return True, None, None  # None means "all users"
+        return True, None, None  
     
     try:
         uid = int(user_id_str)
@@ -75,7 +75,7 @@ def validate_reminders(reminders_str: Optional[str]) -> Tuple[bool, str, Optiona
         (is_valid, reminders_string, error_message)
     """
     if not reminders_str:
-        return True, "3,2,1", None  # Default
+        return True, "3,2,1", None  
     
     reminders_str = reminders_str.strip()
     if reminders_str.lower() == "default":
@@ -93,7 +93,7 @@ def validate_reminders(reminders_str: Optional[str]) -> Tuple[bool, str, Optiona
             continue
     
     if not valid_parts:
-        return True, "3,2,1", None  # Default if invalid
+        return True, "3,2,1", None  
     
     return True, ",".join(valid_parts), None
 
@@ -106,13 +106,13 @@ def validate_url(url_str: Optional[str]) -> Tuple[bool, Optional[str], Optional[
         (is_valid, url, error_message)
     """
     if not url_str:
-        return True, None, None  # None is allowed
+        return True, None, None  
     
     url_str = url_str.strip()
     if url_str.lower() == "none":
         return True, None, None
     
-    # Basic URL check
+    
     if url_str.startswith(("http://", "https://")):
         if len(url_str) > 500:
             return False, None, "الرابط طويل جداً"

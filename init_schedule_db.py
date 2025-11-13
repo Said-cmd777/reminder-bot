@@ -1,4 +1,4 @@
-# init_schedule_db.py
+
 """Initialize schedule database with existing Group 1 data."""
 from db_utils import db_connection
 from db_schedule import (
@@ -13,13 +13,13 @@ def init_schedule_database():
     print("Initializing schedule database...")
     
     with db_connection() as conn:
-        # Insert locations
+        
         print("Inserting locations...")
         for location, maps_url in LOCATION_MAPS.items():
             insert_schedule_location(conn, location, maps_url)
             print(f"  - {location}")
         
-        # Insert Group 1 schedule
+        
         print("\nInserting Group 1 schedule...")
         day_order = ["saturday", "sunday", "monday", "tuesday", "wednesday", "thursday", "friday"]
         
@@ -48,9 +48,9 @@ def init_schedule_database():
                 )
                 print(f"  - {day}: {time_start}-{time_end} {cls['course']} (ID: {class_id})")
         
-        # Set alternating week configurations
+        
         print("\nSetting alternating week configurations...")
-        # Reference date: November 11, 2024 (Monday) - week 0
+        
         reference_date = "2024-11-11"
         set_alternating_week_config(conn, "algorithm1", reference_date, "Laboratory Session Algorithm1 (Monday)")
         set_alternating_week_config(conn, "statistics1", reference_date, "Laboratory Session Statistics1 (Thursday)")

@@ -1,4 +1,4 @@
-# config.py
+
 """Configuration settings loaded from environment variables."""
 import os
 import sys
@@ -7,31 +7,31 @@ import tempfile
 from pathlib import Path
 from typing import List
 
-# تهيئة logger أولاً
+
 logger = logging.getLogger(__name__)
 
-# محاولة تحميل python-dotenv إذا كان متوفراً (لقراءة ملف .env)
+
 try:
     from dotenv import load_dotenv
-    # تحديد المسار الصحيح لملف .env (في نفس مجلد config.py)
+    
     env_path = os.path.join(os.path.dirname(__file__), '.env')
-    # تحميل متغيرات البيئة من ملف .env
+    
     if load_dotenv(dotenv_path=env_path):
         logger.info(f"✅ تم تحميل ملف .env من: {env_path}")
     else:
-        # محاولة تحميل من المجلد الحالي أيضاً
+        
         if load_dotenv():
             logger.info("✅ تم تحميل ملف .env من المجلد الحالي")
         else:
             logger.warning("⚠️ ملف .env غير موجود - سيتم استخدام متغيرات البيئة العادية")
 except ImportError:
-    # python-dotenv غير مثبت - لا مشكلة، سنستخدم متغيرات البيئة العادية
+    
     logger.warning("⚠️ python-dotenv غير مثبت - سيتم استخدام متغيرات البيئة العادية فقط")
     logger.warning("💡 لتثبيته: pip install python-dotenv")
 
-# ============================================
-# BOT_TOKEN - مطلوب
-# ============================================
+
+
+
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 if not BOT_TOKEN:
     raise ValueError(
@@ -43,9 +43,9 @@ if not BOT_TOKEN:
 if len(BOT_TOKEN) < 20:
     logger.warning("BOT_TOKEN يبدو قصيراً جداً - تأكد من صحته")
 
-# ============================================
-# ADMIN_IDS - مطلوب للأمان
-# ============================================
+
+
+
 ADMIN_IDS_ENV = os.getenv("ADMIN_IDS")
 if ADMIN_IDS_ENV:
     try:
@@ -57,7 +57,7 @@ if ADMIN_IDS_ENV:
         logger.error(f"خطأ في تحليل ADMIN_IDS: {e}")
         raise ValueError(f"ADMIN_IDS غير صحيح. يجب أن يكون أرقام مفصولة بفواصل. مثال: 123456789,987654321")
 else:
-    # تحذير أمني واضح جداً
+    
     logger.critical(
         "⚠️ تحذير أمني: ADMIN_IDS غير معيّن! "
         "البوت يعمل في وضع التطوير بدون حماية."
@@ -79,7 +79,7 @@ else:
 DB_PATH = os.getenv("DB_PATH", "reminders.db")
 BACKUP_DIR = os.getenv("BACKUP_DIR") or "backups"
 
-# التحقق من صحة المسارات وإنشاء المجلدات
+
 db_dir = os.path.dirname(DB_PATH) or "."
 if db_dir and not os.path.exists(db_dir):
     try:
@@ -88,7 +88,7 @@ if db_dir and not os.path.exists(db_dir):
     except OSError as e:
         raise ValueError(f"لا يمكن إنشاء مجلد قاعدة البيانات {db_dir}: {e}")
 
-# إنشاء مجلد النسخ الاحتياطي
+
 try:
     os.makedirs(BACKUP_DIR, exist_ok=True)
     logger.info(f"✅ مجلد النسخ الاحتياطي: {BACKUP_DIR}")
@@ -123,9 +123,9 @@ LOG_MAX_SIZE = int(os.getenv("LOG_MAX_SIZE") or "10485760")  # 10MB افتراض
 API_TIMEOUT = int(os.getenv("API_TIMEOUT") or "30")
 MAX_RETRIES = int(os.getenv("MAX_RETRIES") or "3")
 
-# ============================================
-# Reminder Settings
-# ============================================
+
+
+
 DEFAULT_REMINDERS = os.getenv("DEFAULT_REMINDERS", "3,2,1")
 
 # ============================================
@@ -141,25 +141,25 @@ MAX_BACKUP_FILES = int(os.getenv("MAX_BACKUP_FILES") or "7")
 DEBUG_MODE = (os.getenv("DEBUG_MODE") or "false").lower() == "true"
 
 
-# ============================================
-# Validation Functions
-# ============================================
+
+
+
 def validate_config():
     """التحقق من صحة جميع الإعدادات عند بدء التشغيل"""
     errors = []
     warnings = []
     
-    # التحقق من BOT_TOKEN
+    
     if not BOT_TOKEN:
         errors.append("BOT_TOKEN مفقود")
     elif len(BOT_TOKEN) < 20:
         warnings.append("BOT_TOKEN يبدو قصيراً جداً - تأكد من صحته")
     
-    # التحقق من ADMIN_IDS
+    
     if not ADMIN_IDS:
         warnings.append("⚠️ لا يوجد ADMIN_IDS معيّن - الوضع غير آمن!")
     
-    # التحقق من المسارات
+    
     db_dir = os.path.dirname(DB_PATH) or "."
     if not os.access(db_dir, os.W_OK):
         errors.append(f"❌ لا يمكن الكتابة في مسار قاعدة البيانات: {db_dir}")
@@ -167,7 +167,7 @@ def validate_config():
     if not os.access(BACKUP_DIR, os.W_OK):
         warnings.append(f"⚠️ لا يمكن الكتابة في مجلد النسخ الاحتياطي: {BACKUP_DIR}")
     
-    # التحقق من قيم الإعدادات
+    
     if API_TIMEOUT < 1:
         warnings.append("API_TIMEOUT يجب أن يكون أكبر من 0")
     
@@ -177,7 +177,7 @@ def validate_config():
     if BACKUP_INTERVAL_HOURS < 1:
         warnings.append("BACKUP_INTERVAL_HOURS يجب أن يكون أكبر من 0")
     
-    # طباعة التحذيرات
+    
     if warnings:
         logger.warning("="*60)
         logger.warning("⚠️ تحذيرات الإعدادات:")
@@ -185,7 +185,7 @@ def validate_config():
             logger.warning(f"  - {w}")
         logger.warning("="*60)
     
-    # إيقاف التشغيل عند وجود أخطاء
+    
     if errors:
         logger.critical("="*60)
         logger.critical("❌ أخطاء حرجة في الإعدادات:")
@@ -194,7 +194,7 @@ def validate_config():
         logger.critical("="*60)
         raise ValueError("فشل التحقق من الإعدادات. راجع الأخطاء أعلاه.")
     
-    if not warnings:  # فقط إذا لم تكن هناك تحذيرات
+    if not warnings:  
         logger.info("✅ تم التحقق من جميع الإعدادات بنجاح")
 
 
@@ -221,5 +221,5 @@ def print_config(hide_sensitive=True):
     print("="*70 + "\n")
 
 
-# استدعاء التحقق تلقائياً عند الاستيراد
+
 validate_config()

@@ -1,4 +1,4 @@
-# init_group4_schedule.py
+
 """Initialize Group 4 schedule in database."""
 from db_utils import db_connection
 from db_schedule import (
@@ -6,7 +6,7 @@ from db_schedule import (
     get_schedule_classes
 )
 
-# Courses المشتركة بين جميع المجموعات (من Group 1)
+
 SHARED_COURSES = {
     "saturday": [
         {"time_start": "08:00", "time_end": "09:30", "course": "Analysis1", "location": "Amphi H", "type": "Course"},
@@ -22,7 +22,7 @@ SHARED_COURSES = {
     ],
 }
 
-# Online Courses المشتركة بين جميع المجموعات
+
 SHARED_ONLINE_COURSES = {
     "monday": [
         {"time_start": "11:20", "time_end": "12:50", "course": "ICT", "location": "Online (Google Meet)", "type": "Online Session"},
@@ -32,7 +32,7 @@ SHARED_ONLINE_COURSES = {
     ],
 }
 
-# Group 4 specific Tutorial Sessions and Laboratory Sessions
+
 GROUP_4_SPECIFIC = {
     "saturday": [
         {"time_start": "13:00", "time_end": "14:30", "course": "Statistics1", "location": "Room 300", "type": "Tutorial Session"},
@@ -53,7 +53,7 @@ GROUP_4_SPECIFIC = {
     ],
 }
 
-# New locations for Group 4
+
 NEW_LOCATIONS = {
     "Room 300": "https://maps.app.goo.gl/thSXikhVfBnYkBAp8",
     "Room R6": "https://maps.app.goo.gl/JAZogpZFbW7nTw5y7",
@@ -65,7 +65,7 @@ def init_group4_schedule():
     print("NOTE: Group 4 uses reversed alternating logic (same as Group 2: week 0 = no labs, week 1 = has labs)")
     
     with db_connection() as conn:
-        # Insert new locations
+        
         if NEW_LOCATIONS:
             print("\nInserting new locations...")
             for location, maps_url in NEW_LOCATIONS.items():
@@ -76,30 +76,30 @@ def init_group4_schedule():
                 except Exception as e:
                     print(f"  [WARNING] {location}: {e}")
         
-        # Insert shared courses for Group 4
+        
         print("\nInserting shared courses for Group 4...")
         day_order = ["saturday", "sunday", "monday", "tuesday", "wednesday", "thursday", "friday"]
         
         for day in day_order:
-            # Collect all classes for this day (shared courses + online courses + group-specific)
+            
             all_classes = []
             
-            # Add shared courses
+            
             if day in SHARED_COURSES:
                 all_classes.extend(SHARED_COURSES[day])
             
-            # Add shared online courses
+            
             if day in SHARED_ONLINE_COURSES:
                 all_classes.extend(SHARED_ONLINE_COURSES[day])
             
-            # Add Group 4 specific sessions (Tutorial and Laboratory)
+            
             if day in GROUP_4_SPECIFIC:
                 all_classes.extend(GROUP_4_SPECIFIC[day])
             
-            # Sort all classes by time_start
+            
             all_classes.sort(key=lambda x: x["time_start"])
             
-            # Insert classes in chronological order
+            
             for display_order, cls in enumerate(all_classes):
                 try:
                     class_id = insert_schedule_class(

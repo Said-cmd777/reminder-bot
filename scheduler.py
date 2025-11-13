@@ -1,4 +1,4 @@
-# scheduler.py
+
 """
 Scheduler manager — يدير جدولة التذكيرات والنسخ الاحتياطي بطريقة مستديمة (SQLAlchemyJobStore) أو ذاكرة.
 أُضيف هنا معامل use_persistent_jobstore ليتوافق مع ما قد يمرره bot.py.
@@ -40,7 +40,7 @@ def send_hw_reminder(hw_id: int, days_before: int, db_path: str):
             conn.close()
             logger.info("send_hw_reminder: no row for hw_id=%s", hw_id)
             return
-        # لا نحتاج للتحقق من done العام - سنتحقق من حالة كل مستخدم على حدة
+        
 
         subject = row['subject']
         due_at = row['due_at']
@@ -52,7 +52,7 @@ def send_hw_reminder(hw_id: int, days_before: int, db_path: str):
         target_user = None
         try:
             target_user_val = row['target_user_id']
-            # التحقق من أن القيمة ليست None وليست NULL
+            
             if target_user_val is not None:
                 target_user = int(target_user_val)
         except (KeyError, TypeError, ValueError):
@@ -65,19 +65,19 @@ def send_hw_reminder(hw_id: int, days_before: int, db_path: str):
                 f"الشروط: {conditions}\n"
                 f"ID: {hw_id}")
 
-        # تحديد المستلمين: إذا كان target_user_id محدداً، أرسل له فقط
-        # وإذا كان None، أرسل لجميع المستخدمين المسجلين
+        
+        
         if target_user is not None:
             recipients = [target_user]
             logger.info("send_hw_reminder: sending to specific user_id=%s", target_user)
         else:
-            # الحصول على جميع المستخدمين المسجلين
+            
             try:
                 cur.execute("SELECT user_id FROM users")
                 user_rows = cur.fetchall()
                 recipients = [r[0] for r in user_rows if r[0] is not None]
                 if not recipients:
-                    # إذا لم يوجد مستخدمون مسجلون، أرسل للـ chat_id كبديل
+                    
                     logger.warning("send_hw_reminder: no registered users found, sending to chat_id=%s", target_chat)
                     recipients = [target_chat]
                 else:
@@ -92,27 +92,27 @@ def send_hw_reminder(hw_id: int, days_before: int, db_path: str):
                     logger.error("send_hw_reminder: scheduler_bot غير مضبوط — لا أستطيع الإرسال")
                     continue
                 
-                # التحقق من أن المستخدم لم يكمل الواجب بعد
-                # (فقط للمستخدمين، وليس للـ chat_id)
-                if isinstance(recip, int) and recip > 0:  # user_id (موجب)
+                
+                
+                if isinstance(recip, int) and recip > 0:  
                     cur.execute("SELECT 1 FROM homework_completions WHERE hw_id = ? AND user_id = ?", (hw_id, recip))
                     if cur.fetchone() is not None:
                         logger.info("send_hw_reminder: user_id=%s already completed hw_id=%s, skipping", recip, hw_id)
                         continue
                     
-                    # التحقق من إعدادات الإشعارات للمستخدم (homework reminders)
+                    
                     try:
                         from db import get_notification_setting
-                        # Note: We need to use a new connection since we're inside scheduler
-                        # We can reuse the existing conn, but we need to ensure row_factory is set
-                        # Since we're already using conn, we can use it directly
-                        # But to be safe, let's use the same connection
+                        
+                        
+                        
+                        
                         if not get_notification_setting(conn, recip, 'homework_reminders'):
                             logger.info("send_hw_reminder: user_id=%s disabled homework_reminders, skipping", recip)
                             continue
                     except Exception as notif_err:
                         logger.warning("send_hw_reminder: failed to check notification settings for user_id=%s: %s", recip, notif_err)
-                        # Continue sending if check fails (default behavior)
+                        
                 
                 scheduler_bot.send_message(recip, text)
                 if pdf_type == "file_id" and pdf_value:
@@ -295,7 +295,7 @@ class SchedulerManager:
             conn.row_factory = sqlite3.Row
             cur = conn.cursor()
             
-            # Bootstrap homework reminders
+            
             cur.execute("SELECT * FROM homeworks WHERE done = 0")
             rows = cur.fetchall()
             for r in rows:
@@ -304,7 +304,7 @@ class SchedulerManager:
                 except Exception:
                     logger.exception("schedule error for row id %s", r['id'] if 'id' in r.keys() else "<unknown>")
             
-            # Bootstrap custom reminders
+            
             try:
                 cur.execute("SELECT * FROM custom_reminders")
                 custom_reminders = cur.fetchall()

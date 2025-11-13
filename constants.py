@@ -1,7 +1,7 @@
-# constants.py
+
 """Constants for callback data and configuration values."""
 
-# Callback data prefixes
+
 CALLBACK_HW_DONE = "hw_done:"
 CALLBACK_HW_UNDONE = "hw_undone:"
 CALLBACK_HW_PDF = "hw_pdf:"
@@ -23,7 +23,7 @@ CALLBACK_MANUAL_TARGET_ALL = "manual_target_all"
 CALLBACK_MANUAL_TARGET_USER = "manual_target_user"
 CALLBACK_MANUAL_TARGET_CHAT = "manual_target_chat"
 CALLBACK_MANUAL_TARGET_CHAT_TOPIC = "manual_target_chat_topic"
-# Custom reminders callbacks
+
 CALLBACK_CUSTOM_REMINDER = "custom_reminder"
 CALLBACK_CUSTOM_REMINDER_ADD = "custom_reminder_add"
 CALLBACK_CUSTOM_REMINDER_LIST = "custom_reminder_list"
@@ -32,7 +32,7 @@ CALLBACK_CUSTOM_REMINDER_CONFIRM_DELETE = "custom_reminder_confirm_delete:"
 CALLBACK_CUSTOM_REMINDER_DONE = "custom_reminder_done:"
 CALLBACK_CUSTOM_REMINDER_UNDONE = "custom_reminder_undone:"
 
-# Weekly Schedule callbacks
+
 CALLBACK_WEEKLY_SCHEDULE = "weekly_schedule"
 CALLBACK_WEEKLY_SCHEDULE_GROUP_01 = "weekly_schedule_group_01"
 CALLBACK_WEEKLY_SCHEDULE_GROUP_02 = "weekly_schedule_group_02"
@@ -43,7 +43,7 @@ CALLBACK_WEEKLY_SCHEDULE_TOMORROW = "weekly_schedule_tomorrow:"
 CALLBACK_WEEKLY_SCHEDULE_WEEK = "weekly_schedule_week:"
 CALLBACK_WEEKLY_SCHEDULE_LOCATION = "weekly_schedule_location:"
 
-# Weekly Schedule Admin callbacks
+
 CALLBACK_WEEKLY_SCHEDULE_ADMIN = "weekly_schedule_admin"
 CALLBACK_WEEKLY_SCHEDULE_ADMIN_GROUP = "weekly_schedule_admin_group:"
 CALLBACK_WEEKLY_SCHEDULE_ADMIN_DAY = "weekly_schedule_admin_day:"
@@ -54,7 +54,7 @@ CALLBACK_WEEKLY_SCHEDULE_ADMIN_DELETE = "weekly_schedule_admin_delete:"
 CALLBACK_WEEKLY_SCHEDULE_ADMIN_CONFIRM_DELETE = "weekly_schedule_admin_confirm_delete:"
 CALLBACK_WEEKLY_SCHEDULE_ADMIN_LOCATIONS = "weekly_schedule_admin_locations"
 CALLBACK_WEEKLY_SCHEDULE_ADMIN_ALTERNATING = "weekly_schedule_admin_alternating"
-# Edit class field callbacks
+
 CALLBACK_SCHEDULE_EDIT_FIELD = "schedule_edit_field:"
 CALLBACK_SCHEDULE_EDIT_TIME_START = "schedule_edit_time_start:"
 CALLBACK_SCHEDULE_EDIT_TIME_END = "schedule_edit_time_end:"
@@ -62,13 +62,13 @@ CALLBACK_SCHEDULE_EDIT_COURSE = "schedule_edit_course:"
 CALLBACK_SCHEDULE_EDIT_LOCATION = "schedule_edit_location:"
 CALLBACK_SCHEDULE_EDIT_TYPE = "schedule_edit_type:"
 CALLBACK_SCHEDULE_EDIT_ALTERNATING = "schedule_edit_alternating:"
-# Alternating week config callbacks
+
 CALLBACK_ALTERNATING_LIST = "alternating_list"
 CALLBACK_ALTERNATING_EDIT = "alternating_edit:"
 CALLBACK_ALTERNATING_EDIT_DATE = "alternating_edit_date:"
 CALLBACK_ALTERNATING_ADD = "alternating_add"
 
-# Notification settings callbacks
+
 CALLBACK_NOTIFICATION_SETTINGS = "notification_settings"
 CALLBACK_NOTIFICATION_DISABLE_HOMEWORK = "notification_disable_homework"
 CALLBACK_NOTIFICATION_ENABLE_HOMEWORK = "notification_enable_homework"
@@ -79,16 +79,16 @@ CALLBACK_NOTIFICATION_ENABLE_CUSTOM = "notification_enable_custom"
 CALLBACK_NOTIFICATION_DISABLE_ALL = "notification_disable_all"
 CALLBACK_NOTIFICATION_ENABLE_ALL = "notification_enable_all"
 
-# Default values
+
 DEFAULT_REMINDERS = "3,2,1"
 MAX_INPUT_LENGTH = 2000
 MAX_DESCRIPTION_LENGTH = 5000
 
-# Pending state keys
+
 PENDING_STEP_TARGET_TYPE = "target_type"
 PENDING_STEP_ENTER_TARGET = "enter_target"
 PENDING_STEP_ENTER_TEXT = "enter_text"
-PENDING_STEP_ENTER_CONTENT = "enter_content"  # نص أو ملف
+PENDING_STEP_ENTER_CONTENT = "enter_content"  
 PENDING_STEP_ENTER_CHAT = "enter_chat"
 PENDING_STEP_ENTER_THREAD = "enter_thread_or_reply"
 PENDING_STEP_ENTER_DATETIME = "enter_datetime"

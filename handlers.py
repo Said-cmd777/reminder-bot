@@ -1,4 +1,4 @@
-# handlers.py
+
 """Telegram bot handlers for homework reminder system."""
 import logging
 import threading
@@ -58,7 +58,7 @@ from constants import (
 
 logger = logging.getLogger(__name__)
 
-# Import new structure
+
 from bot_handlers.base import BotHandlers, StateManager, StateType
 from bot_handlers.helpers import (
     is_admin, format_homework_text, main_menu_kb, cancel_inline_kb,
@@ -75,14 +75,14 @@ from bot_handlers.schedule_admin_helpers import (
     DAY_NAMES_AR, DAY_ORDER
 )
 
-# --------------------- متغير عام لكائن البوت (للتوافق مع APScheduler) ---------------------
-# Note: This is kept for APScheduler which needs module-level functions
-# The new BotHandlers class should be used for new code
+
+
+
 global_bot: Optional[telebot.TeleBot] = None
 
-# ---------------- دوال سطحية قابلة للجدولة (يجب أن تكون نصية عند الجدولة) ----------------
-# Note: These functions are kept at module level for APScheduler compatibility
-# APScheduler requires module-level functions when using string references
+
+
+
 def _job_send_to_chat(chat_id: int, text: str, message_thread_id: Optional[int] = None):
     """دالة سطحية (module:function) تُستخدم من قبل APScheduler بالاسم النصي."""
     try:
@@ -109,7 +109,7 @@ def _job_send_to_user(user_id: int, text: str):
             logger.error("_job_send_to_user: global_bot غير مضبوط")
             return
         
-        # التحقق من إعدادات الإشعارات للمستخدم (manual reminders)
+        
         with db_connection() as conn:
             if not get_notification_setting(conn, user_id, 'manual_reminders'):
                 logger.info("_job_send_to_user: user_id=%s disabled manual_reminders, skipping", user_id)
@@ -136,7 +136,7 @@ def _job_send_custom_reminder(reminder_id: int, user_id: int):
         from bot_handlers.helpers import custom_reminder_item_kb
         
         with db_connection() as conn:
-            # التحقق من إعدادات الإشعارات للمستخدم
+            
             if not get_notification_setting(conn, user_id, 'custom_reminders'):
                 logger.info("_job_send_custom_reminder: user_id=%s disabled custom_reminders, skipping", user_id)
                 return
@@ -146,7 +146,7 @@ def _job_send_custom_reminder(reminder_id: int, user_id: int):
                 logger.warning("_job_send_custom_reminder: reminder_id=%s not found", reminder_id)
                 return
             
-            # التحقق من أن المستخدم لم يكمل التذكير
+            
             if is_custom_reminder_done_for_user(conn, reminder_id, user_id):
                 logger.info("_job_send_custom_reminder: user_id=%s already completed reminder_id=%s, skipping", user_id, reminder_id)
                 return
@@ -172,17 +172,17 @@ def _job_send_media_to_user(user_id: int, text: str, media_type: str, media_file
             logger.error("_job_send_media_to_user: global_bot غير مضبوط")
             return
         
-        # التحقق من إعدادات الإشعارات للمستخدم (manual reminders)
+        
         with db_connection() as conn:
             if not get_notification_setting(conn, user_id, 'manual_reminders'):
                 logger.info("_job_send_media_to_user: user_id=%s disabled manual_reminders, skipping", user_id)
                 return
         
-        # إرسال النص أولاً إذا كان موجوداً
+        
         if text:
             global_bot.send_message(user_id, text)
         
-        # إرسال الملف
+        
         if media_type == "photo":
             global_bot.send_photo(user_id, media_file_id, caption=caption)
         elif media_type == "audio":
@@ -217,14 +217,14 @@ def _job_send_media_to_chat(chat_id: int, text: str, media_type: str, media_file
             logger.error("_job_send_media_to_chat: global_bot غير مضبوط")
             return
         
-        # إرسال النص أولاً إذا كان موجوداً
+        
         if text:
             if message_thread_id:
                 global_bot.send_message(chat_id, text, message_thread_id=message_thread_id)
             else:
                 global_bot.send_message(chat_id, text)
         
-        # إرسال الملف
+        
         send_kwargs = {"caption": caption} if caption else {}
         if message_thread_id:
             send_kwargs["message_thread_id"] = message_thread_id
@@ -241,11 +241,11 @@ def _job_send_media_to_chat(chat_id: int, text: str, media_type: str, media_file
             global_bot.send_document(chat_id, media_file_id, **send_kwargs)
         elif media_type == "video_note":
             if message_thread_id:
-                send_kwargs.pop("caption", None)  # video_note doesn't support caption
+                send_kwargs.pop("caption", None)  
             global_bot.send_video_note(chat_id, media_file_id, **send_kwargs)
         elif media_type == "sticker":
             if message_thread_id:
-                send_kwargs.pop("caption", None)  # sticker doesn't support caption
+                send_kwargs.pop("caption", None)  
             global_bot.send_sticker(chat_id, media_file_id, **send_kwargs)
         else:
             logger.warning("_job_send_media_to_chat: unknown media_type=%s", media_type)
@@ -260,18 +260,18 @@ def _job_send_media_to_chat(chat_id: int, text: str, media_type: str, media_file
         logger.exception("فشل إرسال ملف media_type=%s إلى chat_id=%s", media_type, chat_id)
 
 
-# ---------------- حالات مؤقتة محمية (لتجنب تداخل الطلبات) ----------------
-# Note: These are kept for backward compatibility
-# New code should use StateManager from handlers.base
+
+
+
 _pending_add = {}
 _pending_manual = {}
 _pending_nickname = {}
-_pending_schedule_admin = {}  # For schedule admin operations
+_pending_schedule_admin = {}  
 _pending_lock = threading.Lock()
 _pending_nickname_lock = threading.Lock()
 _pending_schedule_admin_lock = threading.Lock()
 
-# Global state manager instance (will be initialized in register_handlers)
+
 _state_mgr: Optional[StateManager] = None
 
 
@@ -295,7 +295,7 @@ def is_pending_add(chat_id):
     """Check if pending add state is active (backward compatibility)."""
     with _pending_lock:
         return _pending_add.get(chat_id, False)
-    # Also check state manager if available
+    
     if _state_mgr:
         return _state_mgr.is_active(chat_id, StateType.ADD_HOMEWORK)
     return False
@@ -323,7 +323,7 @@ def get_pending_manual(chat_id):
         pm = _pending_manual.get(chat_id)
         if pm:
             return dict(pm)
-    # Also check state manager if available
+    
     if _state_mgr:
         state = _state_mgr.get(chat_id)
         if state and state.state_type == StateType.MANUAL_REMINDER:
@@ -331,9 +331,9 @@ def get_pending_manual(chat_id):
     return None
 
 
-# ---------------- Helper functions (re-exported from handlers.helpers) ----------------
-# These are kept here for backward compatibility
-# New code should import from handlers.helpers directly
+
+
+
 
 def cancel_operation(chat_id: int, message_id: Optional[int] = None):
     """Cancel any pending operations and clear state."""
@@ -341,7 +341,7 @@ def cancel_operation(chat_id: int, message_id: Optional[int] = None):
     cancel_pending_manual(chat_id)
     with _pending_nickname_lock:
         _pending_nickname.pop(chat_id, None)
-    # Cancel schedule admin operations
+    
     with _pending_schedule_admin_lock:
         _pending_schedule_admin.pop(chat_id, None)
     
@@ -352,7 +352,7 @@ def cancel_operation(chat_id: int, message_id: Optional[int] = None):
             pass
 
 
-# ---------------- الدالة الرئيسية لتسجيل المعالجات ----------------
+
 def register_handlers(bot: telebot.TeleBot, sch_mgr):
     """
     تسجيل المعالجات على كائن bot.
@@ -366,20 +366,20 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
     """
     global global_bot, _state_mgr
     
-    # Set global bot for APScheduler compatibility
+    
     global_bot = bot
     
-    # Initialize state manager
+    
     _state_mgr = StateManager()
     
-    # Initialize rate limiter
+    
     from bot_handlers.base import RateLimiter
     rate_limiter = RateLimiter(max_calls=5, period=60)
 
-    # ---------------- /start ----------------
+    
     @bot.message_handler(commands=["start"])
     def cmd_start(m):
-        # Rate limiting
+        
         if not rate_limiter.is_allowed(m.from_user.id):
             try:
                 bot.send_message(m.chat.id, "⏳ انتظر قليلاً قبل المحاولة مرة أخرى")
@@ -398,7 +398,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
             except Exception:
                 logger.exception("Failed register_user in /start")
 
-            # إرسال رسالة ترحيب شاملة مع دليل الاستخدام
+            
             welcome_text = """🎉 **مرحباً بك في Reminder Bot!**
 
 أهلاً وسهلاً بك في بوت التذكيرات والجداول الأسبوعية. أنا هنا لمساعدتك في إدارة واجباتك ومتابعة جدولك الأسبوعي.
@@ -475,18 +475,18 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"""
             
-            # إرسال رسالة الترحيب أولاً
+            
             try:
                 bot.send_message(m.chat.id, welcome_text, parse_mode='Markdown', reply_markup=main_menu_kb())
             except Exception:
-                # إذا فشل Markdown، نرسل بدون تنسيق
+                
                 try:
                     welcome_text_plain = welcome_text.replace('**', '').replace('`', '')
                     bot.send_message(m.chat.id, welcome_text_plain, reply_markup=main_menu_kb())
                 except Exception:
                     logger.exception("Failed to send welcome message")
 
-            # نطلب من المستخدم إدخال display name
+            
             try:
                 with _pending_nickname_lock:
                     _pending_nickname[m.chat.id] = True
@@ -499,7 +499,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
                 bot.register_next_step_handler(msg, handle_nickname)
             except Exception:
                 try:
-                    # بدون Markdown
+                    
                     msg = bot.send_message(
                         m.chat.id,
                         "📝 خطوة التسجيل الأخيرة:\n\nرجاءً أدخل اللقب_الاسم أو أي صيغة مفصولة بـ _ أو مسافة أو - أو ,\n\nمثال: خالد_السعيد أو خالد السعيد أو Khaled_Said أو Khaled Said\n\nأو اكتب 'إلغاء' لتخطي هذه الخطوة.",
@@ -510,7 +510,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
                     logger.exception("Failed to request nickname")
                     bot.send_message(m.chat.id, "حدث خطأ أثناء طلب الاسم. يمكنك استخدام البوت الآن.", reply_markup=main_menu_kb())
 
-    # ---------------- مساعدة: /chatid ----------------
+    
     @bot.message_handler(commands=['chatid'])
     def cmd_chatid(m):
         try:
@@ -518,7 +518,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
         except Exception:
             logger.exception("Failed to reply to /chatid")
 
-    # ---------------- مساعدة: /gettopic ----------------
+    
     @bot.message_handler(commands=['gettopic'])
     def cmd_gettopic(m):
         try:
@@ -530,24 +530,24 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
             logger.exception("Failed in /gettopic")
             bot.send_message(m.chat.id, "فشل الحصول على معلومات الموضوع — راجع اللوغ.")
 
-    # ---------------- فتح قائمة Homeworks ----------------
+    
     @bot.message_handler(func=lambda msg: msg.text == "Homeworks")
     def open_hw_menu(m):
         kb = hw_main_kb(m.from_user.id)
         bot.send_message(m.chat.id, "قائمة Homeworks:", reply_markup=kb)
         logger.info(f"Opened Homeworks menu for user {m.from_user.id} in chat {m.chat.id}")
 
-    # ---------------- فتح قائمة Weekly Schedule ----------------
+    
     @bot.message_handler(func=lambda msg: msg.text == "Weekly Schedule")
     def open_weekly_schedule_menu(m):
         kb = weekly_schedule_group_kb()
         bot.send_message(m.chat.id, "Select your Group", reply_markup=kb)
         logger.info(f"Opened Weekly Schedule menu for user {m.from_user.id} in chat {m.chat.id}")
 
-    # ---------------- معالج callback للرجوع إلى قائمة المجموعات ----------------
-    # Note: CALLBACK_WEEKLY_SCHEDULE will be handled in the callback handler to show group selection again
+    
+    
 
-    # ---------------- CALLBACK HANDLER ----------------
+    
     @bot.callback_query_handler(func=lambda c: True)
     def callbacks(c):
         uid = c.from_user.id
@@ -555,17 +555,17 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
         chat_id = c.message.chat.id if c.message else None
         logger.info(f"[DEBUG CALLBACK] {datetime.now().isoformat()} | from={uid} | chat={chat_id} | data={data}")
 
-        # زر إلغاء عام - يجب أن يكون أول معالج
+        
         if data == CALLBACK_HW_CANCEL:
-            # إلغاء جميع العمليات المعلقة
+            
             cancel_operation(chat_id, c.message.message_id if c.message else None)
             bot.send_message(chat_id, "تم إلغاء العملية.", reply_markup=main_menu_kb())
             bot.answer_callback_query(c.id)
             return
         
-        # إذا كان هناك pending schedule admin operation، يجب إلغاؤها عند أي callback (ماعدا cancel و location operations و edit operations)
-        # لأن callbacks لا يجب أن تكون جزءاً من عملية إدخال نص
-        # لكن نستثني عمليات المواقع والتحرير لأنها قد تستخدم callbacks
+        
+        
+        
         is_location_callback = (
             data == "schedule_location_add" or
             data.startswith("schedule_location_edit:") or
@@ -594,13 +594,13 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
         with _pending_schedule_admin_lock:
             if chat_id in _pending_schedule_admin and not (is_location_callback or is_edit_callback or is_alternating_config_callback):
                 pm = _pending_schedule_admin.get(chat_id)
-                # نلغي فقط إذا كانت العملية هي إضافة/تعديل حصة، وليست عملية موقع أو تحرير
+                
                 if pm and pm.get("action") not in ["add_location", "edit_location_url", "edit_class", "edit_alternating_config", "add_alternating_config"]:
                     logger.info(f"[SCHEDULE ADMIN] Found pending operation for chat {chat_id}, clearing it due to callback: {data}")
                     _pending_schedule_admin.pop(chat_id, None)
-                    # لا نرسل رسالة هنا لأن المستخدم قد يكون يريد فعل شيء آخر
+                    
 
-        # زر رجوع
+        
         if data == CALLBACK_HW_BACK:
             try:
                 if c.message:
@@ -611,7 +611,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
             bot.answer_callback_query(c.id)
             return
 
-        # قائمة الواجبات
+        
         if data == CALLBACK_HW_LIST:
             with db_connection() as conn_local:
                 rows = get_all_homeworks(conn_local)
@@ -639,7 +639,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
             bot.answer_callback_query(c.id)
             return
 
-        # إضافة واجب
+        
         if data == CALLBACK_HW_ADD:
             if not is_admin(uid):
                 bot.answer_callback_query(c.id, "غير مصرح.", show_alert=True)
@@ -650,7 +650,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
             bot.answer_callback_query(c.id)
             return
 
-        # تفاصيل واجب (view)
+        
         if data.startswith(CALLBACK_HW_VIEW):
             hw_id = int(data.split(":", 1)[1])
             with db_connection() as conn_local:
@@ -672,16 +672,16 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
             bot.answer_callback_query(c.id)
             return
 
-        # تم - وضع علامة "تم" على الواجب للمستخدم الحالي
+        
         if data.startswith(CALLBACK_HW_DONE):
             hw_id = int(data.split(":", 1)[1])
             with db_connection() as conn_local:
                 mark_done(conn_local, hw_id, uid)
-                # الحصول على بيانات الواجب المحدثة لتحديث الزر
+                
                 r = get_homework(conn_local, hw_id)
                 is_done = is_homework_done_for_user(conn_local, hw_id, uid)
             if r:
-                # تحديث الزر في الرسالة الأصلية
+                
                 try:
                     if c.message:
                         text = format_homework_text(r)
@@ -695,16 +695,16 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
             bot.answer_callback_query(c.id)
             return
 
-        # لم يتم - إلغاء وضع "تم" للمستخدم الحالي
+        
         if data.startswith(CALLBACK_HW_UNDONE):
             hw_id = int(data.split(":", 1)[1])
             with db_connection() as conn_local:
                 mark_undone(conn_local, hw_id, uid)
-                # الحصول على بيانات الواجب المحدثة لتحديث الزر
+                
                 r = get_homework(conn_local, hw_id)
                 is_done = is_homework_done_for_user(conn_local, hw_id, uid)
             if r:
-                # تحديث الزر في الرسالة الأصلية
+                
                 try:
                     if c.message:
                         text = format_homework_text(r)
@@ -718,7 +718,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
             bot.answer_callback_query(c.id)
             return
 
-        # ملف الواجب
+        
         if data.startswith(CALLBACK_HW_PDF):
             hw_id = int(data.split(":", 1)[1])
             with db_connection() as conn_local:
@@ -740,7 +740,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
             bot.answer_callback_query(c.id)
             return
 
-        # تعديل واجب - عرض قائمة
+        
         if data == CALLBACK_HW_EDIT:
             if not is_admin(uid):
                 bot.answer_callback_query(c.id, "غير مصرح.", show_alert=True)
@@ -764,7 +764,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
             bot.answer_callback_query(c.id)
             return
 
-        # حذف واجب - عرض قائمة
+        
         if data == CALLBACK_HW_DELETE:
             if not is_admin(uid):
                 bot.answer_callback_query(c.id, "غير مصرح.", show_alert=True)
@@ -849,7 +849,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
             bot.answer_callback_query(c.id)
             return
 
-        # ---------------- Manual reminder flow ----------------
+        
         if data == CALLBACK_MANUAL_REMINDER:
             if not is_admin(uid):
                 bot.answer_callback_query(c.id, "غير مصرح.", show_alert=True)
@@ -888,7 +888,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
             with _pending_lock:
                 pm = _pending_manual.get(chat_id) or {}
                 pm["target_type"] = t
-                # إذا الجميع لا نحتاج لقيمة مستهدف؛ إذا chat_topic سنطلب chat_id ثم thread_id
+                
                 if t == "all":
                     pm["step"] = PENDING_STEP_ENTER_CONTENT
                 elif t == "chat_topic":
@@ -909,14 +909,14 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
             bot.answer_callback_query(c.id)
             return
 
-        # ---------------- Custom Reminders Handlers ----------------
-        # قائمة التذكيرات المخصصة الرئيسية
+        
+        
         if data == CALLBACK_CUSTOM_REMINDER:
             bot.send_message(chat_id, "🔔 تذكيراتي المخصصة:", reply_markup=custom_reminder_main_kb())
             bot.answer_callback_query(c.id)
             return
 
-        # إضافة تذكير مخصص
+        
         if data == CALLBACK_CUSTOM_REMINDER_ADD:
             with _pending_lock:
                 _pending_manual[chat_id] = {"step": "custom_text", "type": "custom_reminder"}
@@ -925,7 +925,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
             bot.answer_callback_query(c.id)
             return
 
-        # قائمة التذكيرات المخصصة للمستخدم
+        
         if data == CALLBACK_CUSTOM_REMINDER_LIST:
             with db_connection() as conn_local:
                 reminders = get_all_custom_reminders_for_user(conn_local, uid)
@@ -942,7 +942,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
             bot.answer_callback_query(c.id)
             return
 
-        # حذف تذكير مخصص
+        
         if data.startswith(CALLBACK_CUSTOM_REMINDER_DELETE):
             reminder_id = int(data.split(":", 1)[1])
             kb = types.InlineKeyboardMarkup()
@@ -957,7 +957,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
             with db_connection() as conn_local:
                 deleted = delete_custom_reminder(conn_local, reminder_id, uid)
             if deleted:
-                # إزالة job من scheduler
+                
                 try:
                     job_id = f"custom_reminder-{reminder_id}"
                     sch_mgr.scheduler.remove_job(job_id)
@@ -969,7 +969,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
             bot.answer_callback_query(c.id)
             return
 
-        # تم - وضع علامة "تم" على التذكير المخصص
+        
         if data.startswith(CALLBACK_CUSTOM_REMINDER_DONE):
             reminder_id = int(data.split(":", 1)[1])
             with db_connection() as conn_local:
@@ -988,7 +988,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
             bot.answer_callback_query(c.id)
             return
 
-        # لم يتم - إلغاء وضع "تم" على التذكير المخصص
+        
         if data.startswith(CALLBACK_CUSTOM_REMINDER_UNDONE):
             reminder_id = int(data.split(":", 1)[1])
             with db_connection() as conn_local:
@@ -1007,8 +1007,8 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
             bot.answer_callback_query(c.id)
             return
 
-        # ---------------- Weekly Schedule Admin Handlers ----------------
-        # يجب أن تكون قبل Weekly Schedule Handlers لأن "weekly_schedule_admin" يبدأ بـ "weekly_schedule"
+        
+        
         if data == CALLBACK_WEEKLY_SCHEDULE_ADMIN:
             logger.info(f"[SCHEDULE ADMIN] Callback received: data={data}, uid={uid}, chat_id={chat_id}")
             if not is_admin(uid):
@@ -1016,10 +1016,10 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
                 bot.answer_callback_query(c.id, "غير مصرح.", show_alert=True)
                 return
             
-            # Get chat_id from callback or message
+            
             reply_chat_id = chat_id
             if not reply_chat_id:
-                reply_chat_id = c.from_user.id  # Fallback to user ID
+                reply_chat_id = c.from_user.id  
             logger.info(f"[SCHEDULE ADMIN] Using reply_chat_id={reply_chat_id}")
             
             try:
@@ -1033,7 +1033,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
                     logger.warning(f"[SCHEDULE ADMIN] Could not load groups from DB: {db_error}, using defaults")
                 
                 if not groups:
-                    groups = ["01", "02", "03", "04"]  # Default groups
+                    groups = ["01", "02", "03", "04"]  
                     logger.info(f"[SCHEDULE ADMIN] Using default groups: {groups}")
                 
                 kb = schedule_admin_groups_kb(groups)
@@ -1047,7 +1047,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
                     bot.send_message(reply_chat_id, error_msg, reply_markup=main_menu_kb())
                 except Exception as send_error:
                     logger.exception(f"[SCHEDULE ADMIN] Failed to send error message: {send_error}")
-                    # If send_message fails, try to answer callback with error
+                    
                     bot.answer_callback_query(c.id, "حدث خطأ. راجع اللوغ.", show_alert=True)
             finally:
                 bot.answer_callback_query(c.id)
@@ -1061,7 +1061,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
             reply_chat_id = chat_id or c.from_user.id
             group_number = data.split(":", 1)[1]
             if group_number == "new":
-                # TODO: Handle new group creation
+                
                 bot.send_message(reply_chat_id, "إضافة مجموعة جديدة (سيتم إضافتها لاحقاً)", reply_markup=main_menu_kb())
                 bot.answer_callback_query(c.id)
                 return
@@ -1113,7 +1113,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
                             kb = schedule_admin_classes_list_kb(group_number, day, [dict(c) for c in classes])
                             bot.send_message(reply_chat_id, text, reply_markup=kb)
                     else:
-                        # Full week view
+                        
                         classes = get_schedule_classes(conn, group_number)
                         if not classes:
                             bot.send_message(reply_chat_id, f"Group {group_number}\n\nلا توجد حصص.", reply_markup=schedule_admin_days_kb(group_number))
@@ -1142,7 +1142,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
             parts = data.split(":", 1)[1].split(":")
             group_number = parts[0]
             day = parts[1]
-            # Start adding process
+            
             with _pending_schedule_admin_lock:
                 _pending_schedule_admin[reply_chat_id] = {
                     "action": "add",
@@ -1216,7 +1216,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
                     if cls:
                         delete_schedule_class(conn, class_id)
                         bot.send_message(reply_chat_id, f"تم حذف الحصة (ID: {class_id}).")
-                        # Refresh view
+                        
                         cls_dict = dict(cls)
                         kb = schedule_admin_day_menu_kb(cls_dict['group_number'], cls_dict['day_name'])
                         bot.send_message(reply_chat_id, f"Group {cls_dict['group_number']} - {DAY_NAMES_AR.get(cls_dict['day_name'], cls_dict['day_name'])}", reply_markup=kb)
@@ -1226,7 +1226,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
             bot.answer_callback_query(c.id)
             return
 
-        # ---------------- Schedule Admin Locations Handlers ----------------
+        
         if data == CALLBACK_WEEKLY_SCHEDULE_ADMIN_LOCATIONS:
             if not is_admin(uid):
                 bot.answer_callback_query(c.id, "غير مصرح.", show_alert=True)
@@ -1344,7 +1344,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
                 with db_connection() as conn:
                     if delete_schedule_location(conn, location_name):
                         bot.send_message(reply_chat_id, f"✅ تم حذف الموقع '{location_name}'.")
-                        # Refresh locations list
+                        
                         from db_schedule import get_schedule_locations
                         locations = get_schedule_locations(conn)
                         if not locations:
@@ -1370,8 +1370,8 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
             bot.answer_callback_query(c.id)
             return
 
-        # ---------------- Schedule Admin Edit Class Handlers ----------------
-        # Edit time start
+        
+        
         if data.startswith(CALLBACK_SCHEDULE_EDIT_TIME_START):
             if not is_admin(uid):
                 bot.answer_callback_query(c.id, "غير مصرح.", show_alert=True)
@@ -1391,7 +1391,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
             bot.answer_callback_query(c.id)
             return
 
-        # Edit time end
+        
         if data.startswith(CALLBACK_SCHEDULE_EDIT_TIME_END):
             if not is_admin(uid):
                 bot.answer_callback_query(c.id, "غير مصرح.", show_alert=True)
@@ -1411,7 +1411,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
             bot.answer_callback_query(c.id)
             return
 
-        # Edit course
+        
         if data.startswith(CALLBACK_SCHEDULE_EDIT_COURSE):
             if not is_admin(uid):
                 bot.answer_callback_query(c.id, "غير مصرح.", show_alert=True)
@@ -1431,7 +1431,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
             bot.answer_callback_query(c.id)
             return
 
-        # Edit location
+        
         if data.startswith(CALLBACK_SCHEDULE_EDIT_LOCATION):
             if not is_admin(uid):
                 bot.answer_callback_query(c.id, "غير مصرح.", show_alert=True)
@@ -1451,7 +1451,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
             bot.answer_callback_query(c.id)
             return
 
-        # Edit type
+        
         if data.startswith(CALLBACK_SCHEDULE_EDIT_TYPE):
             if not is_admin(uid):
                 bot.answer_callback_query(c.id, "غير مصرح.", show_alert=True)
@@ -1469,7 +1469,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
             bot.answer_callback_query(c.id)
             return
 
-        # Handle type selection
+        
         if data.startswith("schedule_edit_type_select:"):
             if not is_admin(uid):
                 bot.answer_callback_query(c.id, "غير مصرح.", show_alert=True)
@@ -1499,7 +1499,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
             bot.answer_callback_query(c.id)
             return
 
-        # Edit alternating
+        
         if data.startswith(CALLBACK_SCHEDULE_EDIT_ALTERNATING):
             if not is_admin(uid):
                 bot.answer_callback_query(c.id, "غير مصرح.", show_alert=True)
@@ -1519,10 +1519,10 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
                     cls_dict = dict(cls)
                     is_alternating = bool(cls_dict.get('is_alternating', 0))
                     
-                    # Toggle alternating status
+                    
                     new_alternating = not is_alternating
                     if new_alternating:
-                        # If enabling alternating, we need alternating_key
+                        
                         with _pending_schedule_admin_lock:
                             _pending_schedule_admin[reply_chat_id] = {
                                 "action": "edit_class",
@@ -1534,7 +1534,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
                         msg = bot.send_message(reply_chat_id, "أرسل مفتاح الحصة الدورية (مثال: algorithm1) أو اكتب 'إلغاء':", reply_markup=cancel_inline_kb())
                         bot.register_next_step_handler(msg, schedule_admin_edit_class_field_step, reply_chat_id)
                     else:
-                        # Disable alternating
+                        
                         if update_schedule_class_field(conn, class_id, "is_alternating", False):
                             update_schedule_class_field(conn, class_id, "alternating_key", None)
                             cls = get_schedule_class(conn, class_id)
@@ -1549,7 +1549,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
             bot.answer_callback_query(c.id)
             return
 
-        # ---------------- Schedule Admin Alternating Week Config Handlers ----------------
+        
         if data == CALLBACK_WEEKLY_SCHEDULE_ADMIN_ALTERNATING:
             if not is_admin(uid):
                 bot.answer_callback_query(c.id, "غير مصرح.", show_alert=True)
@@ -1684,8 +1684,8 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
             bot.answer_callback_query(c.id)
             return
 
-        # ---------------- Weekly Schedule Handlers ----------------
-        # الرجوع إلى قائمة المجموعات
+        
+        
         if data == CALLBACK_WEEKLY_SCHEDULE:
             kb = weekly_schedule_group_kb()
             try:
@@ -1698,7 +1698,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
             bot.answer_callback_query(c.id)
             return
 
-        # اختيار المجموعة - عرض قائمة التوقيت
+        
         if data == CALLBACK_WEEKLY_SCHEDULE_GROUP_01:
             kb = weekly_schedule_time_kb("01")
             bot.send_message(chat_id, "Group 01 - اختر التوقيت:", reply_markup=kb)
@@ -1723,7 +1723,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
             bot.answer_callback_query(c.id)
             return
 
-        # توقيت اليوم
+        
         if data.startswith(CALLBACK_WEEKLY_SCHEDULE_TODAY):
             group_number = data.split(":", 1)[1]
             try:
@@ -1735,7 +1735,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
                 if not entries:
                     bot.send_message(chat_id, "📅 اليوم\n\nلا توجد حصص في هذا اليوم.", reply_markup=main_menu_kb())
                 else:
-                    # Send each class in a separate message
+                    
                     for entry in entries:
                         message_text = format_single_class_message(entry)
                         kb = class_entry_keyboard(entry, group_number, entry.get("day_ar", ""))
@@ -1749,7 +1749,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
             bot.answer_callback_query(c.id)
             return
 
-        # توقيت الغد
+        
         if data.startswith(CALLBACK_WEEKLY_SCHEDULE_TOMORROW):
             group_number = data.split(":", 1)[1]
             try:
@@ -1761,7 +1761,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
                 if not entries:
                     bot.send_message(chat_id, "📅 الغد\n\nلا توجد حصص في هذا اليوم.", reply_markup=main_menu_kb())
                 else:
-                    # Send each class in a separate message
+                    
                     for entry in entries:
                         message_text = format_single_class_message(entry)
                         kb = class_entry_keyboard(entry, group_number, entry.get("day_ar", ""))
@@ -1775,36 +1775,36 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
             bot.answer_callback_query(c.id)
             return
 
-        # التوقيت الأسبوعي كاملا
+        
         if data.startswith(CALLBACK_WEEKLY_SCHEDULE_WEEK):
             group_number = data.split(":", 1)[1]
             try:
                 from weekly_schedule import format_weekly_schedule
                 schedule_text = format_weekly_schedule(group_number)
                 
-                # التحقق من أن النص غير فارغ قبل الإرسال
+                
                 if not schedule_text or not schedule_text.strip():
                     logger.warning(f"format_weekly_schedule returned empty text for group {group_number}")
                     schedule_text = f"📅 الجدول الأسبوعي الكامل - Group {group_number}\n\nلا توجد حصص مسجلة لهذه المجموعة.\n\nيرجى إضافة الحصص من قائمة الإدارة (Admin)."
                 
                 bot.send_message(chat_id, schedule_text, reply_markup=main_menu_kb())
                 
-                # محاولة إرسال ملف PDF إذا كان موجوداً
+                
                 try:
                     from config import SCHEDULES_DIR
                     import os
                     if SCHEDULES_DIR and os.path.exists(SCHEDULES_DIR):
-                        # محاولة إيجاد ملف PDF للمجموعة
+                        
                         pdf_filename = f"weekly_schedule_group_{group_number}.pdf"
                         pdf_path = os.path.join(SCHEDULES_DIR, pdf_filename)
                         
                         if os.path.exists(pdf_path):
-                            # إرسال ملف PDF
+                            
                             with open(pdf_path, 'rb') as pdf_file:
                                 bot.send_document(chat_id, pdf_file, caption=f"📄 الجدول الأسبوعي الكامل - Group {group_number}")
                             logger.info(f"Sent PDF schedule for Group {group_number}")
                         else:
-                            # محاولة إيجاد ملف PDF عام لجميع المجموعات
+                            
                             pdf_all_path = os.path.join(SCHEDULES_DIR, "weekly_schedule_all.pdf")
                             if os.path.exists(pdf_all_path):
                                 with open(pdf_all_path, 'rb') as pdf_file:
@@ -1813,7 +1813,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
                             else:
                                 logger.debug(f"PDF schedule file not found for Group {group_number}")
                 except Exception as pdf_error:
-                    # إذا فشل إرسال PDF، نكمل بدون خطأ (الجدول النصي أُرسل بنجاح)
+                    
                     logger.warning(f"Failed to send PDF schedule: {pdf_error}")
                     
             except Exception as e:
@@ -1826,19 +1826,19 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
             bot.answer_callback_query(c.id)
             return
 
-        # ---------------- Notification Settings Handlers ----------------
+        
         if data == CALLBACK_NOTIFICATION_SETTINGS:
             reply_chat_id = chat_id or c.from_user.id
             try:
                 with db_connection() as conn:
                     settings = get_notification_settings(conn, uid)
                     if settings:
-                        # sqlite3.Row supports dict-like access
+                        
                         homework_enabled = bool(safe_get(settings, 'homework_reminders_enabled', 1))
                         manual_enabled = bool(safe_get(settings, 'manual_reminders_enabled', 1))
                         custom_enabled = bool(safe_get(settings, 'custom_reminders_enabled', 1))
                     else:
-                        # Default: all enabled
+                        
                         homework_enabled = True
                         manual_enabled = True
                         custom_enabled = True
@@ -1854,7 +1854,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
                     try:
                         bot.send_message(reply_chat_id, text, parse_mode='Markdown', reply_markup=kb)
                     except Exception:
-                        # Fallback without Markdown
+                        
                         text_plain = text.replace('**', '').replace('`', '')
                         bot.send_message(reply_chat_id, text_plain, reply_markup=kb)
             except Exception as e:
@@ -1863,13 +1863,13 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
             bot.answer_callback_query(c.id)
             return
 
-        # Disable homework reminders
+        
         if data == CALLBACK_NOTIFICATION_DISABLE_HOMEWORK:
             reply_chat_id = chat_id or c.from_user.id
             try:
                 with db_connection() as conn:
                     set_notification_setting(conn, uid, 'homework_reminders', False)
-                    # Refresh settings view
+                    
                     settings = get_notification_settings(conn, uid)
                     if settings:
                         homework_enabled = bool(safe_get(settings, 'homework_reminders_enabled', 1))
@@ -1897,13 +1897,13 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
             bot.answer_callback_query(c.id)
             return
 
-        # Enable homework reminders
+        
         if data == CALLBACK_NOTIFICATION_ENABLE_HOMEWORK:
             reply_chat_id = chat_id or c.from_user.id
             try:
                 with db_connection() as conn:
                     set_notification_setting(conn, uid, 'homework_reminders', True)
-                    # Refresh settings view
+                    
                     settings = get_notification_settings(conn, uid)
                     if settings:
                         homework_enabled = bool(safe_get(settings, 'homework_reminders_enabled', 1))
@@ -1931,13 +1931,13 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
             bot.answer_callback_query(c.id)
             return
 
-        # Disable manual reminders
+        
         if data == CALLBACK_NOTIFICATION_DISABLE_MANUAL:
             reply_chat_id = chat_id or c.from_user.id
             try:
                 with db_connection() as conn:
                     set_notification_setting(conn, uid, 'manual_reminders', False)
-                    # Refresh settings view
+                    
                     settings = get_notification_settings(conn, uid)
                     if settings:
                         homework_enabled = bool(safe_get(settings, 'homework_reminders_enabled', 1))
@@ -1965,13 +1965,13 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
             bot.answer_callback_query(c.id)
             return
 
-        # Enable manual reminders
+        
         if data == CALLBACK_NOTIFICATION_ENABLE_MANUAL:
             reply_chat_id = chat_id or c.from_user.id
             try:
                 with db_connection() as conn:
                     set_notification_setting(conn, uid, 'manual_reminders', True)
-                    # Refresh settings view
+                    
                     settings = get_notification_settings(conn, uid)
                     if settings:
                         homework_enabled = bool(safe_get(settings, 'homework_reminders_enabled', 1))
@@ -1999,13 +1999,13 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
             bot.answer_callback_query(c.id)
             return
 
-        # Disable custom reminders
+        
         if data == CALLBACK_NOTIFICATION_DISABLE_CUSTOM:
             reply_chat_id = chat_id or c.from_user.id
             try:
                 with db_connection() as conn:
                     set_notification_setting(conn, uid, 'custom_reminders', False)
-                    # Refresh settings view
+                    
                     settings = get_notification_settings(conn, uid)
                     if settings:
                         homework_enabled = bool(safe_get(settings, 'homework_reminders_enabled', 1))
@@ -2033,13 +2033,13 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
             bot.answer_callback_query(c.id)
             return
 
-        # Enable custom reminders
+        
         if data == CALLBACK_NOTIFICATION_ENABLE_CUSTOM:
             reply_chat_id = chat_id or c.from_user.id
             try:
                 with db_connection() as conn:
                     set_notification_setting(conn, uid, 'custom_reminders', True)
-                    # Refresh settings view
+                    
                     settings = get_notification_settings(conn, uid)
                     if settings:
                         homework_enabled = bool(safe_get(settings, 'homework_reminders_enabled', 1))
@@ -2067,7 +2067,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
             bot.answer_callback_query(c.id)
             return
 
-        # Disable all notifications
+        
         if data == CALLBACK_NOTIFICATION_DISABLE_ALL:
             reply_chat_id = chat_id or c.from_user.id
             try:
@@ -2091,7 +2091,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
             bot.answer_callback_query(c.id)
             return
 
-        # Enable all notifications
+        
         if data == CALLBACK_NOTIFICATION_ENABLE_ALL:
             reply_chat_id = chat_id or c.from_user.id
             try:
@@ -2117,7 +2117,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
 
         bot.answer_callback_query(c.id)
 
-    # ---------------- إضافة واجب — خطوات قابلة للإلغاء ----------------
+    
     def hw_add_step_subject(msg, chat_id, admin_id):
         if not is_pending_add(chat_id) or is_cancel_text(getattr(msg, "text", "")):
             cancel_pending_add(chat_id)
@@ -2211,14 +2211,14 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
             bot.register_next_step_handler(m2, hw_add_step_target, subject, description, due_str, pdf_type, pdf_value, chat_id, admin_id)
             return
 
-        # Check if user is registered (only if specific user_id provided)
+        
         if target_user_id is not None:
             with db_connection() as conn_local:
                 if not is_user_registered(conn_local, target_user_id):
                     bot.send_message(chat_id, f"تنبيه: المستخدم (ID:{target_user_id}) لم يبدأ محادثة خاصة مع البوت. اطلب منه إرسال /start في الخاص أو اكتب 'all'.")
         
         m = bot.send_message(chat_id, "اختر التذكيرات: اترك 'default' (3,2,1) أو اكتب قائمة أيام مفصولة بفواصل (مثال: 7,3,1) أو 'إلغاء':", reply_markup=cancel_inline_kb())
-        # Conditions field - defaulting to empty string for now (can be added as a step later)
+        
         conditions = ""
         bot.register_next_step_handler(m, hw_add_step_finalize, subject, description, due_str, pdf_type, pdf_value, conditions, chat_id, admin_id, target_user_id)
 
@@ -2241,7 +2241,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
         cancel_pending_add(chat_id)
         bot.send_message(chat_id, f"تم إضافة الواجب (ID: {hid}). سيتم تذكير الجهة المحددة حسب الإعداد.", reply_markup=main_menu_kb())
         
-        # جدولة التذكيرات
+        
         with db_connection() as conn_local2:
             row = get_homework(conn_local2, hid)
         try:
@@ -2249,7 +2249,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
         except Exception:
             logger.exception("Failed scheduling reminders after insert")
 
-    # --------------- nickname handler ----------------
+    
     def handle_nickname(msg):
         chat_id = msg.chat.id
         text = (msg.text or "").strip()
@@ -2279,7 +2279,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
         bot.send_message(chat_id, f"شكرًا — تم حفظ اسم العرض: {display_name}", reply_markup=main_menu_kb())
         logger.info(f"User {user_id} set display_name={display_name}")
 
-    # --------------- تعديل حقل ----------------
+    
     def hw_edit_handle_field(msg, hw_id, field):
         if is_cancel_text(getattr(msg, "text", "")):
             bot.reply_to(msg, "تم إلغاء التعديل.")
@@ -2379,7 +2379,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
             logger.exception("Error in hw_edit_handle_field")
             bot.reply_to(msg, f"خطأ أثناء التعديل: {e}")
 
-    # --------------- Manual reminder next-step handler ----------------
+    
     def _manual_next_step_handler(msg, originating_chat_id):
         chat_id = originating_chat_id
         text = (msg.text or "").strip()
@@ -2396,7 +2396,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
         step = pm.get("step")
         mode = pm.get("mode")
 
-        # طلب قيمة المستهدف
+        
         if step == PENDING_STEP_ENTER_TARGET:
             try:
                 val = int(text)
@@ -2410,17 +2410,17 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
                 bot.send_message(chat_id, "قيمة غير مفهومة. أدخل user_id أو chat_id صالح أو اكتب 'إلغاء'.")
                 return
 
-        # إدخال المحتوى (نص أو ملف)
+        
         if step == PENDING_STEP_ENTER_CONTENT:
             media_type = None
             media_file_id = None
             caption = None
             
-            # التحقق من نوع المحتوى
+            
             content_type = msg.content_type
             if content_type == "photo":
                 media_type = "photo"
-                # الصور تأتي كقائمة، نأخذ أكبر حجم
+                
                 media_file_id = msg.photo[-1].file_id
                 caption = msg.caption
             elif content_type == "audio":
@@ -2446,7 +2446,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
                 media_type = "sticker"
                 media_file_id = msg.sticker.file_id
             elif content_type == "text":
-                # نص فقط
+                
                 pm["text"] = text
                 pm["media_type"] = None
                 pm["media_file_id"] = None
@@ -2455,24 +2455,24 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
                 bot.send_message(chat_id, "نوع المحتوى غير مدعوم. يرجى إرسال نص أو ملف (صورة، صوت، PDF، فيديو، إلخ) أو اكتب 'إلغاء'.", reply_markup=cancel_inline_kb())
                 return
             
-            # إذا كان هناك ملف، نحفظه
+            
             if media_type:
                 pm["media_type"] = media_type
                 pm["media_file_id"] = media_file_id
                 pm["caption"] = caption
-                # إذا كان هناك caption، نستخدمه كنص أيضاً
+                
                 if caption:
                     pm["text"] = caption
                 elif "text" not in pm:
                     pm["text"] = ""
                 
-                # نسأل إذا كان يريد إضافة نص إضافي
+                
                 msg2 = bot.send_message(chat_id, f"✅ تم استلام {media_type}. هل تريد إضافة نص إضافي؟\nأرسل النص أو اكتب 'تم' أو 'إلغاء' للمتابعة بدون نص إضافي:", reply_markup=cancel_inline_kb())
                 bot.register_next_step_handler(msg2, _manual_content_finalize_handler, chat_id)
                 _pending_manual[chat_id] = pm
                 return
             else:
-                # نص فقط، نحفظه وننتقل للخطوة التالية
+                
                 pm["text"] = text
                 pm["media_type"] = None
                 pm["media_file_id"] = None
@@ -2480,7 +2480,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
             
             _pending_manual[chat_id] = pm
             
-            # الانتقال للخطوة التالية حسب النمط
+            
             if mode == "schedule":
                 pm["step"] = PENDING_STEP_ENTER_DATETIME
                 _pending_manual[chat_id] = pm
@@ -2504,7 +2504,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
                 cancel_pending_manual(chat_id)
                 return
 
-        # إدخال نص التذكير (للتوافق مع الكود القديم)
+        
         if step == PENDING_STEP_ENTER_TEXT:
             pm["text"] = text
             if mode == "schedule":
@@ -2521,7 +2521,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
                 cancel_pending_manual(chat_id)
                 return
 
-        # إدخال التاريخ/الوقت عند الجدولة
+        
         if step == PENDING_STEP_ENTER_DATETIME:
             try:
                 dt = parse_dt(text)
@@ -2546,17 +2546,17 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
             cancel_pending_manual(chat_id)
             return
 
-        # إذا كنا في خطوة طلب chat (لـ chat_topic)
+        
         if step == PENDING_STEP_ENTER_CHAT:
-            # نقبل إما الرد على رسالة داخل الموضوع، أو رقم chat_id ثم نطلب thread_id أو نأخذ reply's thread_id
+            
             thread_id = None
             chat_id_val = None
 
-            # إذا المستخدم رد داخل الموضوع على رسالة في الموضوع — نحاول استخراج message_thread_id
+            
             if getattr(msg, "reply_to_message", None):
                 thread_id = getattr(msg.reply_to_message, "message_thread_id", None)
-                chat_id_val = msg.chat.id  # لأنه رد داخل الموضوع في نفس المجموعة
-                # نسمح باستخدام هذا مباشرة:
+                chat_id_val = msg.chat.id  
+                
                 pm["target_value"] = chat_id_val
                 pm["thread_id"] = thread_id
                 pm["step"] = PENDING_STEP_ENTER_CONTENT
@@ -2565,11 +2565,11 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
                 bot.register_next_step_handler(msg2, _manual_next_step_handler, chat_id)
                 return
 
-            # وإلا نحاول تحويل النص إلى chat_id (رقم) أو نطلب thread_id لاحقًا
+            
             try:
                 chat_id_val = int(text)
                 pm["target_value"] = chat_id_val
-                # نطلب thread_id أو إمكانية الرد داخل الموضوع
+                
                 pm["step"] = PENDING_STEP_ENTER_THREAD
                 _pending_manual[chat_id] = pm
                 msg2 = bot.send_message(chat_id, "أدخل message_thread_id للـ topic (رقم) أو قم بالرد على رسالة داخل الموضوع ثم أرسل هنا:", reply_markup=cancel_inline_kb())
@@ -2579,9 +2579,9 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
                 bot.send_message(chat_id, "قيمة chat_id غير صالحة. أدخل chat_id رقميًا (مثال: -1001234567890) أو اكتب 'إلغاء'.")
                 return
 
-        # خطوة إدخال thread_id بعد أن أُدخل chat_id يدوياً
+        
         if step == PENDING_STEP_ENTER_THREAD:
-            # إذا رد داخل الموضوع نلتقط thread_id
+            
             thread_id = None
             if getattr(msg, "reply_to_message", None):
                 thread_id = getattr(msg.reply_to_message, "message_thread_id", None)
@@ -2602,7 +2602,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
             bot.register_next_step_handler(msg2, _manual_next_step_handler, chat_id)
             return
 
-    # --------------- معالج إكمال المحتوى بعد استلام الملف ----------------
+    
     def _manual_content_finalize_handler(msg, originating_chat_id):
         """معالج للنص الإضافي بعد استلام الملف."""
         chat_id = originating_chat_id
@@ -2620,11 +2620,11 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
         
         mode = pm.get("mode")
         
-        # إذا كتب "تم" أو ترك النص فارغاً، نستخدم caption الملف فقط
+        
         if text.lower() in ["تم", "done", "skip"] or not text:
             pm["text"] = pm.get("caption", "") or ""
         else:
-            # إذا كان هناك caption للملف، ندمجه مع النص الجديد
+            
             existing_caption = pm.get("caption", "")
             if existing_caption:
                 pm["text"] = f"{existing_caption}\n\n{text}"
@@ -2633,7 +2633,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
         
         _pending_manual[chat_id] = pm
         
-        # الانتقال للخطوة التالية
+        
         if mode == "schedule":
             pm["step"] = PENDING_STEP_ENTER_DATETIME
             _pending_manual[chat_id] = pm
@@ -2655,7 +2655,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
             )
             cancel_pending_manual(chat_id)
 
-    # --------------- تنفيذ الإرسال اليدوي (فوري أو مجدول) ----------------
+    
     def _do_manual_send(origin_chat_id, mode, text, target_type, target_value=None, when: Optional[datetime] = None, thread_id: Optional[int] = None, media_type: Optional[str] = None, media_file_id: Optional[str] = None, caption: Optional[str] = None):
         """
         mode: 'now' أو 'schedule'
@@ -2687,7 +2687,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
                     bot.send_message(origin_chat_id, "قيمة المستهدف غير صالحة. أدخل user_id أو chat_id صحيح (مثال: -1001234567890).", reply_markup=main_menu_kb())
                     return
 
-            # إرسال إلى الجميع
+            
             if target_type == "all":
                 with db_connection() as conn_local:
                     uids = get_all_registered_user_ids(conn_local)
@@ -2696,14 +2696,14 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
                 for uid in uids:
                     try:
                         if mode == "now":
-                            # التحقق من إعدادات الإشعارات للمستخدم (manual reminders)
+                            
                             with db_connection() as conn_check:
                                 if not get_notification_setting(conn_check, uid, 'manual_reminders'):
                                     logger.info("_do_manual_send: user_id=%s disabled manual_reminders, skipping", uid)
                                     skipped += 1
                                     continue
                             if media_type and media_file_id:
-                                # إرسال ملف مع نص
+                                
                                 if text:
                                     bot.send_message(uid, text)
                                 if media_type == "photo":
@@ -2721,11 +2721,11 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
                                 elif media_type == "sticker":
                                     bot.send_sticker(uid, media_file_id)
                             else:
-                                # إرسال نص فقط
+                                
                                 if text:
                                     bot.send_message(uid, text)
                         else:
-                            # جدولة
+                            
                             job_id = f"manual_all_{uid}_{int(datetime.now().timestamp())}"
                             try:
                                 if media_type and media_file_id:
@@ -2743,7 +2743,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
                 bot.send_message(origin_chat_id, f"تم معالجة التذكير اليدوي (إلى الجميع). فشل الإرسال لعدد: {failures}{skipped_msg}", reply_markup=main_menu_kb())
                 return
 
-            # إرسال إلى مستخدم محدد
+            
             if target_type == "user":
                 uid = parse_target_val(target_value)
                 if uid is None:
@@ -2751,14 +2751,14 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
                     return
                 try:
                     if mode == "now":
-                        # التحقق من إعدادات الإشعارات للمستخدم (manual reminders)
+                        
                         with db_connection() as conn_check:
                             if not get_notification_setting(conn_check, uid, 'manual_reminders'):
                                 logger.info("_do_manual_send: user_id=%s disabled manual_reminders, skipping", uid)
                                 bot.send_message(origin_chat_id, f"المستخدم (ID:{uid}) أوقف تذكيرات الأدمين. لن يتم إرسال الرسالة.", reply_markup=main_menu_kb())
                                 return
                         if media_type and media_file_id:
-                            # إرسال ملف مع نص
+                            
                             if text:
                                 bot.send_message(uid, text)
                             if media_type == "photo":
@@ -2776,11 +2776,11 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
                             elif media_type == "sticker":
                                 bot.send_sticker(uid, media_file_id)
                         else:
-                            # إرسال نص فقط
+                            
                             if text:
                                 bot.send_message(uid, text)
                     else:
-                        # جدولة
+                        
                         job_id = f"manual_user_{uid}_{int(datetime.now().timestamp())}"
                         try:
                             if media_type and media_file_id:
@@ -2797,7 +2797,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
                     bot.send_message(origin_chat_id, f"فشل إرسال الرسالة للمستخدم (ID:{uid}). قد يكون لم يبدأ البوت أو حظر البوت. الخطأ: {e}", reply_markup=main_menu_kb())
                 return
 
-            # إرسال إلى chat أو topic
+            
             if target_type in ("chat", "chat_topic"):
                 raw_chat = target_value
                 chatid_parsed = parse_target_val(raw_chat)
@@ -2817,7 +2817,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
                     if target_type == "chat":
                         if mode == "now":
                             if media_type and media_file_id:
-                                # إرسال ملف مع نص
+                                
                                 if text:
                                     bot.send_message(real_chat_id, text)
                                 if media_type == "photo":
@@ -2835,12 +2835,12 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
                                 elif media_type == "sticker":
                                     bot.send_sticker(real_chat_id, media_file_id)
                             else:
-                                # إرسال نص فقط
+                                
                                 if text:
                                     bot.send_message(real_chat_id, text)
                             bot.send_message(origin_chat_id, f"تم الإرسال إلى المحادثة {real_chat_id}.", reply_markup=main_menu_kb())
                         else:
-                            # جدولة
+                            
                             job_id = f"manual_chat_{real_chat_id}_{int(datetime.now().timestamp())}"
                             try:
                                 if media_type and media_file_id:
@@ -2853,15 +2853,15 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
                             except Exception:
                                 logger.exception("Failed to schedule manual reminder job for chat")
                                 bot.send_message(origin_chat_id, "فشل جدولة التذكير للمحادثة. راجع اللوغ.", reply_markup=main_menu_kb())
-                    else:  # chat_topic
-                        # thread_id قد يكون مُمرر أو None -> حاول التقاطه من pm أو أخبر المستخدم
+                    else:  
+                        
                         real_thread = thread_id
                         if real_thread is None:
                             bot.send_message(origin_chat_id, "لم يتم تحديد thread_id للموضوع. يجب أن تحدد thread_id أو ترد على رسالة داخل الـ topic.", reply_markup=main_menu_kb())
                             return
                         if mode == "now":
                             if media_type and media_file_id:
-                                # إرسال ملف مع نص
+                                
                                 if text:
                                     bot.send_message(real_chat_id, text, message_thread_id=real_thread)
                                 if media_type == "photo":
@@ -2879,12 +2879,12 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
                                 elif media_type == "sticker":
                                     bot.send_sticker(real_chat_id, media_file_id, message_thread_id=real_thread)
                             else:
-                                # إرسال نص فقط
+                                
                                 if text:
                                     bot.send_message(real_chat_id, text, message_thread_id=real_thread)
                             bot.send_message(origin_chat_id, f"تم الإرسال داخل الموضوع (thread={real_thread}) بالمحادثة {real_chat_id}.", reply_markup=main_menu_kb())
                         else:
-                            # جدولة
+                            
                             job_id = f"manual_chattopic_{real_chat_id}_{real_thread}_{int(datetime.now().timestamp())}"
                             try:
                                 if media_type and media_file_id:
@@ -2907,7 +2907,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
             logger.exception("Error in _do_manual_send")
             bot.send_message(origin_chat_id, "فشل أثناء معالجة التذكير اليدوي.", reply_markup=main_menu_kb())
 
-    # ---------------- Custom Reminder Step Handlers ----------------
+    
     def _custom_reminder_step_text(msg, chat_id, user_id):
         text = (msg.text or "").strip()
         if is_cancel_text(text):
@@ -2942,7 +2942,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
             bot.register_next_step_handler(m, _custom_reminder_step_datetime, chat_id, user_id, reminder_text)
             return
         
-        # إضافة التذكير المخصص
+        
         with db_connection() as conn_local:
             reminder_id = insert_custom_reminder(conn_local, user_id, reminder_text, dt_str)
         
@@ -2951,32 +2951,32 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
         
         bot.send_message(chat_id, f"✅ تم إضافة التذكير المخصص (ID: {reminder_id}). سيتم إرسال التذكير في الوقت المحدد.", reply_markup=main_menu_kb())
         
-        # جدولة التذكير
+        
         try:
             from datetime import datetime
             reminder_dt = datetime.strptime(dt_str, "%Y-%m-%d %H:%M")
             if reminder_dt > datetime.now():
                 job_id = f"custom_reminder-{reminder_id}"
-                # استخدام "handlers" لأن bot.py يسجل الوحدة بهذا الاسم
+                
                 callable_ref = "handlers:_job_send_custom_reminder"
                 sch_mgr.scheduler.add_job(callable_ref, 'date', run_date=reminder_dt, args=[reminder_id, user_id], id=job_id, replace_existing=True)
                 logger.info("Scheduled custom reminder %s at %s", reminder_id, reminder_dt)
         except Exception:
             logger.exception("Failed to schedule custom reminder")
 
-    # ---------------- Schedule Admin Step Handlers ----------------
+    
     def schedule_admin_add_step_time_start(msg, chat_id):
         """Step 1: Get time start."""
-        # التحقق أولاً من أن العملية ما زالت نشطة
+        
         with _pending_schedule_admin_lock:
             pm = _pending_schedule_admin.get(chat_id)
             if not pm:
-                # العملية تم إلغاؤها، لا نفعل شيء
+                
                 return
         
-        # التحقق من أن الرسالة هي نص وليست callback أو أي شيء آخر
+        
         if not hasattr(msg, 'text') or not msg.text:
-            # إذا كانت الرسالة ليست نصاً (مثلاً callback أو ملف)، نتجاهلها
+            
             return
         
         text = msg.text.strip()
@@ -2986,10 +2986,10 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
             bot.send_message(chat_id, "تم إلغاء إضافة الحصة.", reply_markup=main_menu_kb())
             return
         
-        # Validate time format (HH:MM)
+        
         import re
         if not re.match(r'^\d{1,2}:\d{2}$', text):
-            # التحقق مرة أخرى من أن العملية ما زالت نشطة قبل طلب إعادة الإدخال
+            
             with _pending_schedule_admin_lock:
                 if chat_id not in _pending_schedule_admin:
                     return
@@ -3010,13 +3010,13 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
 
     def schedule_admin_add_step_time_end(msg, chat_id):
         """Step 2: Get time end."""
-        # التحقق أولاً من أن العملية ما زالت نشطة
+        
         with _pending_schedule_admin_lock:
             pm = _pending_schedule_admin.get(chat_id)
             if not pm:
                 return
         
-        # التحقق من أن الرسالة هي نص
+        
         if not hasattr(msg, 'text') or not msg.text:
             return
         
@@ -3049,13 +3049,13 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
 
     def schedule_admin_add_step_course(msg, chat_id):
         """Step 3: Get course name."""
-        # التحقق أولاً من أن العملية ما زالت نشطة
+        
         with _pending_schedule_admin_lock:
             pm = _pending_schedule_admin.get(chat_id)
             if not pm:
                 return
         
-        # التحقق من أن الرسالة هي نص
+        
         if not hasattr(msg, 'text') or not msg.text:
             return
         
@@ -3087,13 +3087,13 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
 
     def schedule_admin_add_step_location(msg, chat_id):
         """Step 4: Get location."""
-        # التحقق أولاً من أن العملية ما زالت نشطة
+        
         with _pending_schedule_admin_lock:
             pm = _pending_schedule_admin.get(chat_id)
             if not pm:
                 return
         
-        # التحقق من أن الرسالة هي نص
+        
         if not hasattr(msg, 'text') or not msg.text:
             return
         
@@ -3127,17 +3127,17 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
         kb.add(types.InlineKeyboardButton("Online Session", callback_data=f"schedule_type:Online Session"))
         kb.add(types.InlineKeyboardButton("إلغاء", callback_data=CALLBACK_HW_CANCEL))
         bot.send_message(chat_id, "اختر نوع الحصة:", reply_markup=kb)
-        # Note: We'll handle the type selection in callback handler
+        
 
     def schedule_admin_add_step_alternating(msg, chat_id):
         """Step 6: Ask if alternating."""
-        # التحقق أولاً من أن العملية ما زالت نشطة
+        
         with _pending_schedule_admin_lock:
             pm = _pending_schedule_admin.get(chat_id)
             if not pm:
                 return
         
-        # التحقق من أن الرسالة هي نص
+        
         if not hasattr(msg, 'text') or not msg.text:
             return
         
@@ -3161,18 +3161,18 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
                 m = bot.send_message(chat_id, "أرسل مفتاح الحصة الدورية (مثال: algorithm1 أو statistics1) أو اكتب 'إلغاء':", reply_markup=cancel_inline_kb())
                 bot.register_next_step_handler(m, schedule_admin_add_step_alternating_key, chat_id)
             else:
-                # Finalize
+                
                 schedule_admin_finalize_add(chat_id)
 
     def schedule_admin_add_step_alternating_key(msg, chat_id):
         """Step 7: Get alternating key if alternating."""
-        # التحقق أولاً من أن العملية ما زالت نشطة
+        
         with _pending_schedule_admin_lock:
             pm = _pending_schedule_admin.get(chat_id)
             if not pm:
                 return
         
-        # التحقق من أن الرسالة هي نص
+        
         if not hasattr(msg, 'text') or not msg.text:
             return
         
@@ -3222,16 +3222,16 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
             finally:
                 _pending_schedule_admin.pop(chat_id, None)
 
-    # ---------------- Schedule Admin Location Step Handlers ----------------
+    
     def schedule_admin_location_step_name(msg, chat_id):
         """Step 1: Get location name."""
-        # التحقق أولاً من أن العملية ما زالت نشطة
+        
         with _pending_schedule_admin_lock:
             pm = _pending_schedule_admin.get(chat_id)
             if not pm or pm.get("action") != "add_location":
                 return
         
-        # التحقق من أن الرسالة هي نص
+        
         if not hasattr(msg, 'text') or not msg.text:
             return
         
@@ -3263,17 +3263,17 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
 
     def schedule_admin_location_step_url(msg, chat_id, location_name=None):
         """Step 2: Get maps URL."""
-        # التحقق أولاً من أن العملية ما زالت نشطة
+        
         with _pending_schedule_admin_lock:
             pm = _pending_schedule_admin.get(chat_id)
             if not pm:
                 return
             action = pm.get("action")
-            # استخدام location_name من المعامل أو من pm
+            
             if location_name is None:
                 location_name = pm.get("location_name")
         
-        # التحقق من أن الرسالة هي نص
+        
         if not hasattr(msg, 'text') or not msg.text:
             return
         
@@ -3290,7 +3290,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
                 _pending_schedule_admin.pop(chat_id, None)
             return
         
-        # التحقق من أن الرابط صحيح (بسيط)
+        
         if not text.startswith(("http://", "https://")):
             with _pending_schedule_admin_lock:
                 if chat_id not in _pending_schedule_admin:
@@ -3299,7 +3299,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
             bot.register_next_step_handler(m, schedule_admin_location_step_url, chat_id, location_name)
             return
         
-        # حفظ الموقع
+        
         try:
             from db_schedule import insert_schedule_location
             with db_connection() as conn:
@@ -3315,7 +3315,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
             with _pending_schedule_admin_lock:
                 _pending_schedule_admin.pop(chat_id, None)
 
-    # Handle class type selection callback
+    
     @bot.callback_query_handler(func=lambda c: c.data.startswith("schedule_type:"))
     def schedule_admin_class_type_handler(c):
         if not is_admin(c.from_user.id):
@@ -3338,16 +3338,16 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
         bot.register_next_step_handler(msg, schedule_admin_add_step_alternating, chat_id)
         bot.answer_callback_query(c.id)
 
-    # ---------------- Schedule Admin Edit Class Field Step Handlers ----------------
+    
     def schedule_admin_edit_class_field_step(msg, chat_id):
         """Handle editing a class field."""
-        # التحقق أولاً من أن العملية ما زالت نشطة
+        
         with _pending_schedule_admin_lock:
             pm = _pending_schedule_admin.get(chat_id)
             if not pm or pm.get("action") != "edit_class":
                 return
         
-        # التحقق من أن الرسالة هي نص
+        
         if not hasattr(msg, 'text') or not msg.text:
             return
         
@@ -3371,9 +3371,9 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
             from db_schedule import update_schedule_class_field, get_schedule_class
             import re
             
-            # Validate based on field type
+            
             if field in ["time_start", "time_end"]:
-                # Validate time format (HH:MM)
+                
                 if not re.match(r'^\d{1,2}:\d{2}$', text):
                     with _pending_schedule_admin_lock:
                         if chat_id not in _pending_schedule_admin:
@@ -3383,7 +3383,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
                     return
                 value = text
             elif field == "alternating":
-                # This is handled differently - alternating_key
+                
                 if pm.get("step") == "enter_alternating_key":
                     value = text
                     field_to_update = "alternating_key"
@@ -3402,7 +3402,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
                         _pending_schedule_admin.pop(chat_id, None)
                     return
             else:
-                # course, location - just text validation
+                
                 if not text:
                     with _pending_schedule_admin_lock:
                         if chat_id not in _pending_schedule_admin:
@@ -3412,7 +3412,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
                     return
                 value = text
             
-            # Update the field
+            
             with db_connection() as conn:
                 if update_schedule_class_field(conn, class_id, field, value):
                     cls = get_schedule_class(conn, class_id)
@@ -3432,16 +3432,16 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
             with _pending_schedule_admin_lock:
                 _pending_schedule_admin.pop(chat_id, None)
 
-    # ---------------- Schedule Admin Alternating Config Step Handlers ----------------
+    
     def schedule_admin_edit_alternating_config_step(msg, chat_id):
         """Handle editing alternating config reference date."""
-        # التحقق أولاً من أن العملية ما زالت نشطة
+        
         with _pending_schedule_admin_lock:
             pm = _pending_schedule_admin.get(chat_id)
             if not pm or pm.get("action") != "edit_alternating_config":
                 return
         
-        # التحقق من أن الرسالة هي نص
+        
         if not hasattr(msg, 'text') or not msg.text:
             return
         
@@ -3461,7 +3461,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
                 _pending_schedule_admin.pop(chat_id, None)
             return
         
-        # Validate date format (YYYY-MM-DD)
+        
         import re
         if not re.match(r'^\d{4}-\d{2}-\d{2}$', text):
             with _pending_schedule_admin_lock:
@@ -3474,7 +3474,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
         try:
             from db_schedule import set_alternating_week_config, get_alternating_week_config
             with db_connection() as conn:
-                # Get existing config to preserve description
+                
                 existing_config = get_alternating_week_config(conn, alternating_key)
                 if existing_config:
                     description = safe_get(existing_config, 'description')
@@ -3505,13 +3505,13 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
 
     def schedule_admin_add_alternating_config_step_key(msg, chat_id):
         """Step 1: Get alternating key."""
-        # التحقق أولاً من أن العملية ما زالت نشطة
+        
         with _pending_schedule_admin_lock:
             pm = _pending_schedule_admin.get(chat_id)
             if not pm or pm.get("action") != "add_alternating_config":
                 return
         
-        # التحقق من أن الرسالة هي نص
+        
         if not hasattr(msg, 'text') or not msg.text:
             return
         
@@ -3543,13 +3543,13 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
 
     def schedule_admin_add_alternating_config_step_date(msg, chat_id):
         """Step 2: Get reference date."""
-        # التحقق أولاً من أن العملية ما زالت نشطة
+        
         with _pending_schedule_admin_lock:
             pm = _pending_schedule_admin.get(chat_id)
             if not pm or pm.get("action") != "add_alternating_config":
                 return
         
-        # التحقق من أن الرسالة هي نص
+        
         if not hasattr(msg, 'text') or not msg.text:
             return
         
@@ -3560,7 +3560,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
             bot.send_message(chat_id, "تم إلغاء الإضافة.", reply_markup=main_menu_kb())
             return
         
-        # Validate date format (YYYY-MM-DD)
+        
         import re
         if not re.match(r'^\d{4}-\d{2}-\d{2}$', text):
             with _pending_schedule_admin_lock:
@@ -3591,4 +3591,4 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
             with _pending_schedule_admin_lock:
                 _pending_schedule_admin.pop(chat_id, None)
 
-    # نهاية register_handlers
+    
