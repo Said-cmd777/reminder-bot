@@ -1,4 +1,4 @@
-# db_schedule.py
+
 """Database functions for weekly schedule management."""
 import sqlite3
 from typing import List, Optional, Dict, Any
@@ -24,7 +24,7 @@ def insert_schedule_class(conn: sqlite3.Connection, group_number: str, day_name:
         conn.commit()
         return cur.lastrowid
     except sqlite3.IntegrityError:
-        # Update if exists
+        
         cur.execute("""
         UPDATE weekly_schedule_classes
         SET time_end = ?, location = ?, class_type = ?, is_alternating = ?,

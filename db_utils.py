@@ -1,4 +1,4 @@
-# db_utils.py
+
 """Database utility functions and context managers."""
 
 from contextlib import contextmanager
@@ -21,7 +21,7 @@ def db_connection(auto_commit: bool = True) -> Iterator[sqlite3.Connection]:
     Usage:
         with db_connection() as conn:
             conn.execute("INSERT ...")
-            # Committed automatically
+            
     """
     conn = get_conn()
     try:
@@ -48,7 +48,7 @@ def db_transaction(conn: Optional[sqlite3.Connection] = None):
         with db_transaction() as conn:
             conn.execute("INSERT ...")
             conn.execute("UPDATE ...")
-            # All-or-nothing
+            
     """
     own_conn = conn is None
     if own_conn:

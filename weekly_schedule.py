@@ -1,9 +1,9 @@
-# weekly_schedule.py
+
 """Weekly schedule data and utilities for groups."""
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple, Any
 
-# Group 1 Schedule
+
 GROUP_1_SCHEDULE = {
     "saturday": [
         {"time": "08:00-09:30", "course": "Analysis1", "location": "Amphi H", "type": "Course"},
@@ -32,10 +32,10 @@ GROUP_1_SCHEDULE = {
     "thursday": [
         {"time": "08:00-11:10", "course": "Statistics1", "location": "LabE2.01", "type": "Laboratory Session", "alternating": True, "alternating_key": "statistics1"},
     ],
-    "friday": [],  # No classes on Friday
+    "friday": [],  
 }
 
-# Map English day names to Arabic
+
 DAY_NAMES_AR = {
     "saturday": "السبت",
     "sunday": "الأحد",
@@ -46,7 +46,7 @@ DAY_NAMES_AR = {
     "friday": "الجمعة",
 }
 
-# Map locations to Google Maps URLs
+
 LOCATION_MAPS = {
     "Amphi H": "https://maps.app.goo.gl/dVN1fct8vKn7qtCK9",
     "Room 395T": "https://maps.app.goo.gl/48W4CSMDsJ7BWZJT7",
@@ -60,7 +60,7 @@ LOCATION_MAPS = {
     "Amphi M": "https://maps.app.goo.gl/jgWiMD8QwpaFVxrBA",
 }
 
-# Map weekday numbers to day names (0=Monday, 6=Sunday in Python, but we use Saturday=0)
+
 WEEKDAY_TO_DAY = {
     0: "monday",
     1: "tuesday",
@@ -71,7 +71,7 @@ WEEKDAY_TO_DAY = {
     6: "sunday",
 }
 
-# Reverse mapping for our schedule (Saturday=0)
+
 SCHEDULE_DAY_TO_WEEKDAY = {
     "saturday": 5,
     "sunday": 6,
@@ -92,14 +92,14 @@ def get_current_week_number() -> int:
     - They will study Statistics lab this week (week 0)
     So both labs are in week 0, neither in week 1
     """
-    # Reference date: November 11, 2024 (Monday) - assuming this is week 0
-    # This week (week 0): has Algorithm1 lab AND Statistics lab
-    # Next week (week 1): no Algorithm1 lab, no Statistics lab
-    reference_date = datetime(2024, 11, 11)  # Monday
+    
+    
+    
+    reference_date = datetime(2024, 11, 11)  
     today = datetime.now()
     days_diff = (today - reference_date).days
     week_number = days_diff // 7
-    return week_number % 2  # 0 = has both labs, 1 = no labs
+    return week_number % 2  
 
 
 def is_algorithm1_lab_week() -> bool:
@@ -122,7 +122,7 @@ def is_statistics_lab_week() -> bool:
 def get_today_schedule_day() -> str:
     """Get today's day name in schedule format (saturday, sunday, etc.)."""
     today = datetime.now()
-    weekday = today.weekday()  # 0=Monday, 6=Sunday
+    weekday = today.weekday()  
     return WEEKDAY_TO_DAY[weekday]
 
 
@@ -140,14 +140,14 @@ def format_class_entry(entry: Dict) -> str:
     location = entry["location"]
     class_type = entry.get("type", "Class")
     
-    # Format based on type
+    
     if class_type == "Online Session":
         return f"🖥️ {time_str} - {course} ({location})"
     elif class_type == "Laboratory Session":
         return f"🔬 {time_str} - {class_type} {course} ({location})"
     elif class_type == "Tutorial Session":
         return f"📝 {time_str} - {class_type} {course} ({location})"
-    else:  # Course
+    else:  
         return f"📚 {time_str} - {course} ({location})"
 
 
@@ -158,7 +158,7 @@ def get_group_schedule(group_number: str, day: str) -> List[Dict]:
     Reads from database if available, falls back to hardcoded data.
     """
     try:
-        # Try to read from database first
+        
         from db_schedule import get_schedule_classes, get_alternating_week_config
         from db_utils import db_connection
         from datetime import datetime, timedelta
@@ -167,16 +167,16 @@ def get_group_schedule(group_number: str, day: str) -> List[Dict]:
             db_classes = get_schedule_classes(conn, group_number, day.lower())
             
             if db_classes:
-                # Process database classes
+                
                 filtered_schedule = []
                 for cls in db_classes:
                     cls_dict = dict(cls)
                     
-                    # Check if alternating
+                    
                     if cls_dict.get('is_alternating', 0):
                         alternating_key = cls_dict.get('alternating_key')
                         if alternating_key:
-                            # Get alternating week config
+                            
                             config = get_alternating_week_config(conn, alternating_key)
                             if config:
                                 ref_date = datetime.strptime(config['reference_date'], "%Y-%m-%d")
@@ -184,20 +184,20 @@ def get_group_schedule(group_number: str, day: str) -> List[Dict]:
                                 days_diff = (today - ref_date).days
                                 week_number = (days_diff // 7) % 2
                                 
-                                # Group 1: Week 0 = has lab, Week 1 = no lab (normal logic)
-                                # Group 2: Week 0 = no lab, Week 1 = has lab (reversed logic)
-                                # Group 3: Week 0 = has lab, Week 1 = no lab (same as Group 1 - normal logic)
-                                # Group 4: Week 0 = no lab, Week 1 = has lab (same as Group 2 - reversed logic)
+                                
+                                
+                                
+                                
                                 if group_number in ["02", "04"]:
-                                    # Group 2 & 4: reversed logic (week 0 = no lab, week 1 = has lab)
+                                    
                                     if week_number != 1:
-                                        continue  # Skip this class (only show in week 1)
+                                        continue  
                                 else:
-                                    # Group 1, 3, and others: normal logic (week 0 = has lab, week 1 = no lab)
+                                    
                                     if week_number != 0:
-                                        continue  # Skip this class (only show in week 0)
+                                        continue  
                     
-                    # Convert to format expected by rest of code
+                    
                     entry = {
                         "time": f"{cls_dict['time_start']}-{cls_dict['time_end']}",
                         "course": cls_dict['course'],
@@ -210,36 +210,36 @@ def get_group_schedule(group_number: str, day: str) -> List[Dict]:
                 
                 return filtered_schedule
     except Exception:
-        # Fallback to hardcoded data
+        
         pass
     
-    # Fallback to hardcoded Group 1 schedule (only if database is empty)
+    
     if group_number == "01":
         schedule = GROUP_1_SCHEDULE.get(day.lower(), [])
         
-        # Filter alternating classes based on current week
-        # Group 1: Week 0 = has lab, Week 1 = no lab
+        
+        
         filtered_schedule = []
         for entry in schedule:
             if entry.get("alternating", False):
                 alternating_key = entry.get("alternating_key", "")
                 if alternating_key == "algorithm1":
-                    if is_algorithm1_lab_week():  # Week 0
+                    if is_algorithm1_lab_week():  
                         filtered_schedule.append(entry)
                 elif alternating_key == "statistics1":
-                    if is_statistics_lab_week():  # Week 0
+                    if is_statistics_lab_week():  
                         filtered_schedule.append(entry)
                 else:
-                    # Fallback for other alternating classes
+                    
                     filtered_schedule.append(entry)
             else:
                 filtered_schedule.append(entry)
         
         return filtered_schedule
     else:
-        # Other groups are read from database (should have been initialized)
-        # If database is empty, return empty list
-        # Note: Group 2 uses reversed logic (Week 0 = no lab, Week 1 = has lab)
+        
+        
+        
         return []
 
 
@@ -271,11 +271,11 @@ def get_tomorrow_schedule_entries(group_number: str) -> List[Dict]:
 
 def has_location_map(location: str) -> bool:
     """Check if location has a Google Maps URL (not online)."""
-    # Online sessions don't have physical locations
+    
     if "Online" in location or "Google Meet" in location:
         return False
     
-    # Try database first
+    
     try:
         from db_schedule import get_schedule_location
         from db_utils import db_connection
@@ -286,13 +286,13 @@ def has_location_map(location: str) -> bool:
     except Exception:
         pass
     
-    # Fallback to hardcoded maps
+    
     return location in LOCATION_MAPS
 
 
 def get_location_map_url(location: str) -> Optional[str]:
     """Get Google Maps URL for a location."""
-    # Try database first
+    
     try:
         from db_schedule import get_schedule_location
         from db_utils import db_connection
@@ -303,7 +303,7 @@ def get_location_map_url(location: str) -> Optional[str]:
     except Exception:
         pass
     
-    # Fallback to hardcoded maps
+    
     return LOCATION_MAPS.get(location, None)
 
 
@@ -315,20 +315,20 @@ def format_single_class_message(entry: Dict, day_ar: str = None) -> str:
     class_type = entry.get("type", "Class")
     day_ar = day_ar or entry.get("day_ar", "")
     
-    # Build message
+    
     if day_ar:
         text = f"📅 {day_ar}\n\n"
     else:
         text = ""
     
-    # Format based on type
+    
     if class_type == "Online Session":
         text += f"🖥️ {time_str}\n{course}\n{location}"
     elif class_type == "Laboratory Session":
         text += f"🔬 {time_str}\n{class_type} {course}\n{location}"
     elif class_type == "Tutorial Session":
         text += f"📝 {time_str}\n{class_type} {course}\n{location}"
-    else:  # Course
+    else:  
         text += f"📚 {time_str}\n{course}\n{location}"
     
     return text
@@ -350,7 +350,7 @@ def format_weekly_schedule(group_number: str) -> str:
                 text += format_class_entry(entry) + "\n"
             text += "\n"
     
-    # Add note about alternating weeks (only if there are alternating classes)
+    
     has_alternating = False
     for day in days_order:
         schedule = get_group_schedule(group_number, day)
@@ -363,13 +363,13 @@ def format_weekly_schedule(group_number: str) -> str:
     
     if has_alternating:
         text += "\n📌 ملاحظة:\n"
-        # Check if this group has alternating labs this week
+        
         if group_number in ["02", "04"]:
-            # Group 2 & 4: reversed logic (Week 0 = no lab, Week 1 = has lab)
-            algorithm1_has_lab = not is_algorithm1_lab_week()  # Reversed
-            statistics1_has_lab = not is_statistics_lab_week()  # Reversed
+            
+            algorithm1_has_lab = not is_algorithm1_lab_week()  
+            statistics1_has_lab = not is_statistics_lab_week()  
         else:
-            # Group 1, 3, and others: normal logic (Week 0 = has lab, Week 1 = no lab)
+            
             algorithm1_has_lab = is_algorithm1_lab_week()
             statistics1_has_lab = is_statistics_lab_week()
         

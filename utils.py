@@ -1,4 +1,4 @@
-# utils.py
+
 from datetime import datetime
 import logging
 
@@ -14,7 +14,7 @@ def init_logging(log_file):
     return logging.getLogger(__name__)
 
 def parse_dt(dt_str):
-    # توقع: "YYYY-MM-DD HH:MM"
+    
     return datetime.strptime(dt_str, "%Y-%m-%d %H:%M")
 
 def is_cancel_text(text):

@@ -1,4 +1,4 @@
-# test_config.py - اختبار بسيط للتحقق من متغيرات البيئة
+
 """اختبار سريع للتحقق من أن متغيرات البيئة تعمل بشكل صحيح."""
 import os
 
@@ -6,7 +6,7 @@ print("=" * 50)
 print("اختبار متغيرات البيئة")
 print("=" * 50)
 
-# التحقق من BOT_TOKEN
+
 bot_token = os.getenv("BOT_TOKEN")
 if bot_token:
     print(f"✅ BOT_TOKEN: موجود ({bot_token[:10]}...)")
@@ -14,7 +14,7 @@ else:
     print("❌ BOT_TOKEN: غير موجود")
     print("   قم بتعيينه باستخدام: $env:BOT_TOKEN='your_token'")
 
-# التحقق من ADMIN_IDS
+
 admin_ids_env = os.getenv("ADMIN_IDS")
 if admin_ids_env:
     print(f"✅ ADMIN_IDS: موجود ({admin_ids_env})")
@@ -29,7 +29,7 @@ else:
 
 print("=" * 50)
 
-# محاولة استيراد config
+
 try:
     from config import BOT_TOKEN, ADMIN_IDS
     print("\n✅ تم تحميل config.py بنجاح!")

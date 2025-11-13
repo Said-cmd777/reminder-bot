@@ -1,4 +1,4 @@
-# db.py
+
 """
 DB helpers for Reminder bot — thread-safe approach:
 - get_conn(db_path=None): returns a new sqlite3.Connection with WAL mode.
@@ -22,11 +22,11 @@ def get_conn(db_path: Optional[str] = None) -> sqlite3.Connection:
     conn = sqlite3.connect(db_path, check_same_thread=False, timeout=30)
     conn.row_factory = sqlite3.Row
     try:
-        # Improve concurrency
+        
         conn.execute("PRAGMA journal_mode=WAL;")
         conn.execute("PRAGMA synchronous=NORMAL;")
     except Exception:
-        # Some SQLite builds may not support changing PRAGMA — ignore if fails
+        
         pass
     return conn
 
@@ -65,7 +65,7 @@ def ensure_tables(conn: Optional[sqlite3.Connection] = None):
       registered_at TEXT
     );
     """)
-    # جدول لتتبع حالة "تم" لكل مستخدم لكل واجب
+    
     cur.execute("""
     CREATE TABLE IF NOT EXISTS homework_completions (
       hw_id INTEGER NOT NULL,
@@ -75,7 +75,7 @@ def ensure_tables(conn: Optional[sqlite3.Connection] = None):
       FOREIGN KEY (hw_id) REFERENCES homeworks(id) ON DELETE CASCADE
     );
     """)
-    # جدول للتذكيرات المخصصة للمستخدمين
+    
     cur.execute("""
     CREATE TABLE IF NOT EXISTS custom_reminders (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -86,7 +86,7 @@ def ensure_tables(conn: Optional[sqlite3.Connection] = None):
       FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
     );
     """)
-    # جدول لتتبع حالة "تم" لكل تذكير مخصص
+    
     cur.execute("""
     CREATE TABLE IF NOT EXISTS custom_reminder_completions (
       reminder_id INTEGER NOT NULL,
@@ -96,7 +96,7 @@ def ensure_tables(conn: Optional[sqlite3.Connection] = None):
       FOREIGN KEY (reminder_id) REFERENCES custom_reminders(id) ON DELETE CASCADE
     );
     """)
-    # جدول للحصص الأسبوعية
+    
     cur.execute("""
     CREATE TABLE IF NOT EXISTS weekly_schedule_classes (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -115,7 +115,7 @@ def ensure_tables(conn: Optional[sqlite3.Connection] = None):
       UNIQUE(group_number, day_name, time_start, course)
     );
     """)
-    # جدول لمواقع الحجرات
+    
     cur.execute("""
     CREATE TABLE IF NOT EXISTS schedule_locations (
       location_name TEXT PRIMARY KEY,
@@ -124,7 +124,7 @@ def ensure_tables(conn: Optional[sqlite3.Connection] = None):
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
     """)
-    # جدول لتتبع الحصص الدورية (الأسبوع المرجعي)
+    
     cur.execute("""
     CREATE TABLE IF NOT EXISTS alternating_weeks_config (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -135,7 +135,7 @@ def ensure_tables(conn: Optional[sqlite3.Connection] = None):
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
     """)
-    # جدول إعدادات الإشعارات للمستخدمين
+    
     cur.execute("""
     CREATE TABLE IF NOT EXISTS notification_settings (
       user_id INTEGER PRIMARY KEY,
@@ -150,7 +150,7 @@ def ensure_tables(conn: Optional[sqlite3.Connection] = None):
     if own:
         conn.close()
 
-# ---------------- Homeworks CRUD ----------------
+
 def insert_homework(conn: sqlite3.Connection,
                     subject: str,
                     description: str,
@@ -196,7 +196,7 @@ def mark_done(conn: sqlite3.Connection, hw_id: int, user_id: int):
     """Mark homework as done for a specific user."""
     ensure_tables(conn)
     cur = conn.cursor()
-    # إدراج أو تحديث في جدول homework_completions
+    
     cur.execute("""
         INSERT OR REPLACE INTO homework_completions (hw_id, user_id, completed_at)
         VALUES (?, ?, datetime('now'))
@@ -208,7 +208,7 @@ def mark_undone(conn: sqlite3.Connection, hw_id: int, user_id: int):
     """Mark homework as not done for a specific user (undo done status)."""
     ensure_tables(conn)
     cur = conn.cursor()
-    # حذف من جدول homework_completions
+    
     cur.execute("DELETE FROM homework_completions WHERE hw_id = ? AND user_id = ?", (hw_id, user_id))
     conn.commit()
 
@@ -234,7 +234,7 @@ def update_field(conn: sqlite3.Connection, hw_id: int, field: str, value):
         cur.execute(sql, (value, hw_id))
     conn.commit()
 
-# ---------------- Users helpers ----------------
+
 def register_user(conn: sqlite3.Connection, user_id: int, username: Optional[str]=None,
                   first_name: Optional[str]=None, last_name: Optional[str]=None, ts: Optional[str]=None):
     """
@@ -246,7 +246,7 @@ def register_user(conn: sqlite3.Connection, user_id: int, username: Optional[str
     ensure_tables(conn)
     cur = conn.cursor()
 
-    # 1) Inspect existing columns
+    
     try:
         cur.execute("PRAGMA table_info(users)")
         pi = cur.fetchall()
@@ -259,7 +259,7 @@ def register_user(conn: sqlite3.Connection, user_id: int, username: Optional[str
     except Exception:
         existing_cols = []
 
-    # 2) Add missing columns if needed (safe ALTER TABLE ADD COLUMN)
+    
     expected = {
         "user_id": "INTEGER",
         "username": "TEXT",
@@ -276,7 +276,7 @@ def register_user(conn: sqlite3.Connection, user_id: int, username: Optional[str
             except Exception:
                 pass
 
-    # 3) Try atomic UPDATE first (safer under race conditions)
+    
     try:
         cur.execute("""
             UPDATE users
@@ -284,14 +284,14 @@ def register_user(conn: sqlite3.Connection, user_id: int, username: Optional[str
              WHERE user_id = ?
         """, (username, first_name, last_name, ts, user_id))
         if cur.rowcount == 0:
-            # no row updated -> attempt insert
+            
             try:
                 cur.execute("""
                     INSERT INTO users (user_id, username, first_name, last_name, registered_at)
                     VALUES (?, ?, ?, ?, ?)
                 """, (user_id, username, first_name, last_name, ts))
             except sqlite3.IntegrityError:
-                # possible race where another thread inserted simultaneously -> try update again
+                
                 cur.execute("""
                     UPDATE users
                        SET username = ?, first_name = ?, last_name = ?, registered_at = ?
@@ -299,7 +299,7 @@ def register_user(conn: sqlite3.Connection, user_id: int, username: Optional[str
                 """, (username, first_name, last_name, ts, user_id))
         conn.commit()
     except Exception:
-        # Last-resort fallback: try INSERT OR REPLACE without relying on 'id' selection
+        
         try:
             cur.execute("""
                 INSERT OR REPLACE INTO users (user_id, username, first_name, last_name, registered_at)
@@ -319,7 +319,7 @@ def update_user_display_name(conn: sqlite3.Connection, user_id: int, display_nam
     ensure_tables(conn)
     cur = conn.cursor()
 
-    # Ensure display_name column exists
+    
     try:
         cur.execute("PRAGMA table_info(users);")
         cols = [r[1] for r in cur.fetchall()]
@@ -333,7 +333,7 @@ def update_user_display_name(conn: sqlite3.Connection, user_id: int, display_nam
         except Exception:
             pass
 
-    # Normalize and parse by first separator found
+    
     s = (display_name or "").strip()
     lname = None
     fname = None
@@ -348,11 +348,11 @@ def update_user_display_name(conn: sqlite3.Connection, user_id: int, display_nam
             break
 
     if sep_used is None:
-        # no separator found -> keep whole string as display_name,
-        # and set first_name to the token (if reasonable)
+        
+        
         fname = s if s != "" else None
 
-    # Attempt update then insert if needed
+    
     try:
         cur.execute("""
             UPDATE users
@@ -360,14 +360,14 @@ def update_user_display_name(conn: sqlite3.Connection, user_id: int, display_nam
              WHERE user_id = ?
         """, (display_name, fname, lname, user_id))
         if cur.rowcount == 0:
-            # insert new (username unknown here, set NULL)
+            
             cur.execute("""
                 INSERT INTO users (user_id, username, first_name, last_name, registered_at, display_name)
                 VALUES (?, NULL, ?, ?, datetime('now'), ?)
             """, (user_id, fname, lname, display_name))
         conn.commit()
     except Exception:
-        # fallback
+        
         try:
             cur.execute("""
                 INSERT OR REPLACE INTO users (user_id, username, first_name, last_name, registered_at, display_name)
@@ -386,7 +386,7 @@ def is_user_registered(conn: sqlite3.Connection, user_id: int) -> bool:
 def get_all_registered_user_ids(conn: sqlite3.Connection) -> List[int]:
     ensure_tables(conn)
     cur = conn.cursor()
-    # Use rowid order fallback if id missing
+    
     try:
         cur.execute("SELECT user_id FROM users")
         rows = cur.fetchall()
@@ -394,7 +394,7 @@ def get_all_registered_user_ids(conn: sqlite3.Connection) -> List[int]:
     except Exception:
         return []
 
-# ---------------- Custom Reminders CRUD ----------------
+
 def insert_custom_reminder(conn: sqlite3.Connection, user_id: int, text: str, reminder_datetime: str) -> int:
     """Insert a custom reminder for a user."""
     ensure_tables(conn)
@@ -429,7 +429,7 @@ def delete_custom_reminder(conn: sqlite3.Connection, reminder_id: int, user_id: 
     """Delete a custom reminder. Returns True if deleted, False if not found or not owned by user."""
     ensure_tables(conn)
     cur = conn.cursor()
-    # Verify ownership before deleting
+    
     cur.execute("SELECT id FROM custom_reminders WHERE id = ? AND user_id = ?", (reminder_id, user_id))
     if cur.fetchone() is None:
         return False
@@ -464,11 +464,11 @@ def is_custom_reminder_done_for_user(conn: sqlite3.Connection, reminder_id: int,
     cur.execute("SELECT 1 FROM custom_reminder_completions WHERE reminder_id = ? AND user_id = ?", (reminder_id, user_id))
     return cur.fetchone() is not None
 
-# ---------------- Notification Settings CRUD ----------------
+
 def get_notification_settings(conn: sqlite3.Connection, user_id: int) -> Optional[sqlite3.Row]:
     """Get notification settings for a user. Returns None if not set (defaults to all enabled)."""
     ensure_tables(conn)
-    # Ensure row_factory is set to Row for dictionary-like access
+    
     if conn.row_factory is None:
         conn.row_factory = sqlite3.Row
     cur = conn.cursor()
@@ -484,12 +484,12 @@ def get_notification_setting(conn: sqlite3.Connection, user_id: int, setting_typ
     ensure_tables(conn)
     settings = get_notification_settings(conn, user_id)
     if not settings:
-        return True  # Default: all enabled
+        return True  
     column_name = f"{setting_type}_enabled"
     try:
         return bool(settings[column_name])
     except (KeyError, TypeError):
-        return True  # Default: enabled
+        return True  
 
 def set_notification_setting(conn: sqlite3.Connection, user_id: int, setting_type: str, enabled: bool) -> bool:
     """
@@ -505,22 +505,22 @@ def set_notification_setting(conn: sqlite3.Connection, user_id: int, setting_typ
     from datetime import datetime
     updated_at = datetime.now().isoformat()
     
-    # Check if settings exist
+    
     cur.execute("SELECT 1 FROM notification_settings WHERE user_id = ?", (user_id,))
     exists = cur.fetchone() is not None
     
     if exists:
-        # Update existing settings
+        
         cur.execute(f"UPDATE notification_settings SET {column_name} = ?, updated_at = ? WHERE user_id = ?",
                    (enabled_int, updated_at, user_id))
     else:
-        # Create new settings with defaults, then update the specific setting
+        
         cur.execute("""
             INSERT INTO notification_settings (user_id, homework_reminders_enabled, manual_reminders_enabled, 
                                               custom_reminders_enabled, updated_at)
             VALUES (?, 1, 1, 1, ?)
         """, (user_id, updated_at))
-        # Now update the specific setting
+        
         cur.execute(f"UPDATE notification_settings SET {column_name} = ?, updated_at = ? WHERE user_id = ?",
                    (enabled_int, updated_at, user_id))
     conn.commit()
@@ -578,7 +578,7 @@ def disable_all_notifications(conn: sqlite3.Connection, user_id: int) -> bool:
     conn.commit()
     return True
 
-# Quick init when run directly
+
 if __name__ == "__main__":
     conn = get_conn()
     ensure_tables(conn)

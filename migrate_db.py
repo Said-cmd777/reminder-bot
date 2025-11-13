@@ -1,4 +1,4 @@
-# migrate_db.py
+
 import sqlite3
 from datetime import datetime
 
@@ -27,7 +27,7 @@ def ensure_users_table(conn):
 def main():
     conn = sqlite3.connect(DB_PATH)
     ensure_users_table(conn)
-    # add target_user_id column if missing
+    
     ensure_column_exists(conn, "homeworks", "target_user_id", "INTEGER")
     print("Migration completed at", datetime.now().isoformat())
     conn.close()
