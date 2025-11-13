@@ -77,7 +77,7 @@ else:
 # Database & Storage
 # ============================================
 DB_PATH = os.getenv("DB_PATH", "reminders.db")
-BACKUP_DIR = os.getenv("BACKUP_DIR", "backups")
+BACKUP_DIR = os.getenv("BACKUP_DIR") or "backups"
 
 # التحقق من صحة المسارات وإنشاء المجلدات
 db_dir = os.path.dirname(DB_PATH) or "."
@@ -100,7 +100,7 @@ except OSError as e:
 # ============================================
 # SCHEDULES_DIR - مجلد ملفات PDF للجداول الأسبوعية
 # ============================================
-SCHEDULES_DIR = os.getenv("SCHEDULES_DIR", "schedules")
+SCHEDULES_DIR = os.getenv("SCHEDULES_DIR") or "schedules"
 # إنشاء مجلد الجداول إذا لم يكن موجوداً
 try:
     os.makedirs(SCHEDULES_DIR, exist_ok=True)
@@ -113,15 +113,15 @@ except OSError as e:
 # ============================================
 # Logging
 # ============================================
-LOG_FILE = os.getenv("LOG_FILE", "bot.log")
-LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
-LOG_MAX_SIZE = int(os.getenv("LOG_MAX_SIZE", "10485760"))  # 10MB افتراضي
+LOG_FILE = os.getenv("LOG_FILE") or "bot.log"
+LOG_LEVEL = os.getenv("LOG_LEVEL") or "INFO".upper()
+LOG_MAX_SIZE = int(os.getenv("LOG_MAX_SIZE") or "10485760")  # 10MB افتراضي
 
 # ============================================
 # Telegram API Settings
 # ============================================
-API_TIMEOUT = int(os.getenv("API_TIMEOUT", "30"))
-MAX_RETRIES = int(os.getenv("MAX_RETRIES", "3"))
+API_TIMEOUT = int(os.getenv("API_TIMEOUT") or "30")
+MAX_RETRIES = int(os.getenv("MAX_RETRIES") or "3")
 
 # ============================================
 # Reminder Settings
@@ -131,14 +131,14 @@ DEFAULT_REMINDERS = os.getenv("DEFAULT_REMINDERS", "3,2,1")
 # ============================================
 # Backup Settings
 # ============================================
-BACKUP_ENABLED = os.getenv("BACKUP_ENABLED", "true").lower() == "true"
-BACKUP_INTERVAL_HOURS = int(os.getenv("BACKUP_INTERVAL_HOURS", "24"))
-MAX_BACKUP_FILES = int(os.getenv("MAX_BACKUP_FILES", "7"))
+BACKUP_ENABLED = (os.getenv("BACKUP_ENABLED") or "true").lower() == "true"
+BACKUP_INTERVAL_HOURS = int(os.getenv("BACKUP_INTERVAL_HOURS") or "24")
+MAX_BACKUP_FILES = int(os.getenv("MAX_BACKUP_FILES") or "7")
 
 # ============================================
 # Development Settings
 # ============================================
-DEBUG_MODE = os.getenv("DEBUG_MODE", "false").lower() == "true"
+DEBUG_MODE = (os.getenv("DEBUG_MODE") or "false").lower() == "true"
 
 
 # ============================================
