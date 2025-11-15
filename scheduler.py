@@ -18,6 +18,14 @@ from apscheduler.jobstores.memory import MemoryJobStore
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
+# استيراد pytz
+try:
+    from pytz import timezone as pytz_timezone
+    PYTZ_AVAILABLE = True
+except ImportError:
+    PYTZ_AVAILABLE = False
+    logger.warning("pytz غير متاح - سيتم استخدام UTC")
+
 # جعل SQLAlchemyJobStore اختياري - إذا لم يكن متاحاً، سنستخدم MemoryJobStore
 try:
     from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
@@ -27,6 +35,14 @@ except ImportError:
     logger.warning("SQLAlchemy غير متاح - سيتم استخدام MemoryJobStore بدلاً من SQLAlchemyJobStore")
 
 scheduler_bot = None  # سيعيّن عند تهيئة SchedulerManager
+
+# استيراد get_notification_setting في أعلى الملف لتجنب مشاكل الاستيراد داخل الدالة
+try:
+    from db import get_notification_setting
+    NOTIFICATION_SETTING_AVAILABLE = True
+except ImportError:
+    NOTIFICATION_SETTING_AVAILABLE = False
+    logger.warning("get_notification_setting غير متاح - سيتم إرسال التذكيرات بدون فحص الإعدادات")
 
 def send_hw_reminder(hw_id: int, days_before: int, db_path: str):
     global scheduler_bot
@@ -100,18 +116,17 @@ def send_hw_reminder(hw_id: int, days_before: int, db_path: str):
                         logger.info("send_hw_reminder: user_id=%s already completed hw_id=%s, skipping", recip, hw_id)
                         continue
                     
-                    
-                    try:
-                        from db import get_notification_setting
-                        
-                        
-                        
-                        
-                        if not get_notification_setting(conn, recip, 'homework_reminders'):
-                            logger.info("send_hw_reminder: user_id=%s disabled homework_reminders, skipping", recip)
-                            continue
-                    except Exception as notif_err:
-                        logger.warning("send_hw_reminder: failed to check notification settings for user_id=%s: %s", recip, notif_err)
+                    # فحص إعدادات الإشعارات
+                    if NOTIFICATION_SETTING_AVAILABLE:
+                        try:
+                            if not get_notification_setting(conn, recip, 'homework_reminders'):
+                                logger.info("send_hw_reminder: user_id=%s disabled homework_reminders, skipping", recip)
+                                continue
+                        except Exception as notif_err:
+                            logger.warning("send_hw_reminder: failed to check notification settings for user_id=%s: %s", recip, notif_err)
+                            # في حالة الخطأ، نتابع الإرسال (افتراضياً مفعّل)
+                    else:
+                        logger.debug("send_hw_reminder: notification settings check unavailable, sending anyway")
                         
                 
                 scheduler_bot.send_message(recip, text)
@@ -157,8 +172,7 @@ class SchedulerManager:
                  use_persistent_jobstore: bool = True):
         """
         bot: telebot.TeleBot instance
-        use_persistent_jobstore: إذا True يحاول استخدام SQLAlchemyJobStore (jobs_db)،
-                                وإلا يستخدم MemoryJobStore.
+        use_persistent_jobstore: إذا True يحاول استخدام SQLAlchemyJobStore
         """
         global scheduler_bot
         scheduler_bot = bot
@@ -168,7 +182,23 @@ class SchedulerManager:
         self.jobs_db = jobs_db
         self.use_persistent_jobstore = bool(use_persistent_jobstore)
 
-        # تحديد نوع jobstore المستخدم
+        # ============================================
+        # Timezone Setup
+        # ============================================
+        if PYTZ_AVAILABLE:
+            try:
+                self.timezone = pytz_timezone('Africa/Algiers')
+                logger.info("✅ Timezone set to: Africa/Algiers")
+            except Exception as e:
+                logger.warning(f"Failed to set Algeria timezone: {e}, using UTC")
+                self.timezone = pytz_timezone('UTC')
+        else:
+            self.timezone = None
+            logger.warning("⚠️ pytz not available - scheduler will use system timezone")
+
+        # ============================================
+        # Jobstore Setup
+        # ============================================
         if self.use_persistent_jobstore and SQLALCHEMY_AVAILABLE:
             try:
                 url = f"sqlite:///{os.path.abspath(self.jobs_db)}"
@@ -182,10 +212,25 @@ class SchedulerManager:
                 logger.warning("SchedulerManager: SQLAlchemy غير متاح - سيتم استخدام MemoryJobStore")
             jobstores = {'default': MemoryJobStore()}
 
-        self.scheduler = BackgroundScheduler(jobstores=jobstores, job_defaults={'coalesce': False, 'max_instances': 5})
+        # ============================================
+        # Create Scheduler with Timezone
+        # ============================================
+        if self.timezone:
+            self.scheduler = BackgroundScheduler(
+                jobstores=jobstores,
+                timezone=self.timezone,  # ← المهم!
+                job_defaults={'coalesce': False, 'max_instances': 5}
+            )
+            logger.info("✅ Scheduler created with timezone: %s", self.timezone)
+        else:
+            self.scheduler = BackgroundScheduler(
+                jobstores=jobstores,
+                job_defaults={'coalesce': False, 'max_instances': 5}
+            )
+            logger.warning("⚠️ Scheduler created without explicit timezone")
 
         self.scheduler.start()
-        logger.info("Scheduler started (in-memory or persistent depending on availability).")
+        logger.info("Scheduler started.")
 
     def remove_hw_jobs(self, hw_id: int):
         for days in range(0, 366):
@@ -213,23 +258,53 @@ class SchedulerManager:
             pass
 
         try:
-            due = datetime.strptime(hw_row['due_at'], "%Y-%m-%d %H:%M")
+            # قراءة due_at من قاعدة البيانات
+            due_naive = datetime.strptime(hw_row['due_at'], "%Y-%m-%d %H:%M")
+            
+            # إضافة timezone إذا كان متاحاً
+            if PYTZ_AVAILABLE and hasattr(self, 'timezone') and self.timezone:
+                # إذا كان scheduler له timezone، استخدمه لـ localize naive datetime
+                try:
+                    due = self.timezone.localize(due_naive)
+                    logger.debug("schedule_homework_reminders: localized due_at to timezone %s: %s", self.timezone, due)
+                except Exception as tz_err:
+                    # إذا فشل localize، استخدم naive datetime
+                    logger.warning("schedule_homework_reminders: failed to localize due_at: %s, using naive datetime", tz_err)
+                    due = due_naive
+            else:
+                # بدون timezone - naive datetime
+                due = due_naive
+                logger.debug("schedule_homework_reminders: using naive datetime (no timezone available)")
         except Exception:
             logger.exception("schedule_homework_reminders: invalid due_at for hw_id=%s", hw_id)
             return
 
         remind_spec = None
         try:
-            # دعم sqlite3.Row و dict
-            if hasattr(hw_row, 'keys'):
-                remind_spec = hw_row.get('reminders') if 'reminders' in hw_row.keys() else None
-            else:
-                remind_spec = hw_row.get('reminders')
-        except Exception:
+            # دعم sqlite3.Row و dict - استخدام safe_get من db_utils
+            from db_utils import safe_get
+            remind_spec = safe_get(hw_row, 'reminders', None)
+            
+            # معالجة حالات None و 'None' (string) و ''
+            if remind_spec is None:
+                remind_spec = None
+            elif isinstance(remind_spec, str):
+                remind_spec = remind_spec.strip()
+                if remind_spec.lower() in ('none', 'null', ''):
+                    remind_spec = None
+        except Exception as e:
+            logger.warning("schedule_homework_reminders: failed to get reminders for hw_id=%s: %s", hw_id, e)
             remind_spec = None
+        
+        # تسجيل تفصيلي للتشخيص
+        logger.debug("schedule_homework_reminders: hw_id=%s, remind_spec raw=%s, type=%s", 
+                    hw_id, repr(remind_spec), type(remind_spec).__name__)
+
+        logger.info("schedule_homework_reminders: hw_id=%s, remind_spec='%s'", hw_id, remind_spec)
 
         if not remind_spec:
             remind_spec = "3,2,1"
+            logger.debug("schedule_homework_reminders: using default reminders for hw_id=%s", hw_id)
 
         offsets = []
         for part in str(remind_spec).split(","):
@@ -240,12 +315,28 @@ class SchedulerManager:
                 v = int(p)
                 if 0 <= v <= 3650:
                     offsets.append(v)
+                    logger.debug("schedule_homework_reminders: added offset %s for hw_id=%s", v, hw_id)
             except Exception:
+                logger.warning("schedule_homework_reminders: failed to parse reminder offset '%s' for hw_id=%s", p, hw_id)
                 continue
         if not offsets:
             offsets = [3, 2, 1]
+            logger.debug("schedule_homework_reminders: no valid offsets, using default [3,2,1] for hw_id=%s", hw_id)
+        
+        logger.info("schedule_homework_reminders: hw_id=%s, final offsets=%s", hw_id, offsets)
 
-        now = datetime.now()
+        # الحصول على الوقت الحالي مع نفس timezone الخاص بـ due
+        if PYTZ_AVAILABLE and hasattr(self, 'timezone') and self.timezone:
+            # إذا كان due timezone-aware، استخدم نفس timezone للوقت الحالي
+            now = datetime.now(self.timezone)
+            logger.debug("schedule_homework_reminders: using timezone-aware datetime for now: %s", now)
+        else:
+            # بدون timezone - naive datetime
+            now = datetime.now()
+            logger.debug("schedule_homework_reminders: using naive datetime for now: %s", now)
+        
+        logger.debug("schedule_homework_reminders: hw_id=%s, due=%s, now=%s", hw_id, due, now)
+        
         for days_before in offsets:
             try:
                 run_dt = due - timedelta(days=days_before)
@@ -253,10 +344,40 @@ class SchedulerManager:
                 logger.exception("schedule_homework_reminders: invalid timedelta for hw_id=%s days_before=%s", hw_id, days_before)
                 continue
 
-            if run_dt <= now:
-                logger.debug("schedule_homework_reminders: skipping past run for hw_id=%s days_before=%s (run_dt=%s)", hw_id, days_before, run_dt)
-                continue
+            # التعامل مع التذكيرات الفورية (days_before=0) والتذكيرات في الماضي
+            time_diff = (run_dt - now).total_seconds()
+            
+            logger.debug("schedule_homework_reminders: hw_id=%s, days_before=%s, run_dt=%s, time_diff=%s seconds", 
+                        hw_id, days_before, run_dt, time_diff)
+            
+            if days_before == 0:
+                # للتذكيرات الفورية (0 أيام): أرسل فوراً إذا كان الموعد في الماضي أو الآن
+                if time_diff <= 0:
+                    logger.info("schedule_homework_reminders: sending immediate reminder (days_before=0) for hw_id=%s (due was %s, now is %s, diff=%s seconds)", 
+                               hw_id, due, now, time_diff)
+                    # إرسال التذكير مباشرة بدلاً من جدولته
+                    logger.debug("schedule_homework_reminders: calling send_hw_reminder directly for hw_id=%s", hw_id)
+                    try:
+                        # التحقق من أن scheduler_bot مضبوط
+                        if scheduler_bot is None:
+                            logger.error("schedule_homework_reminders: scheduler_bot is None, cannot send immediate reminder for hw_id=%s", hw_id)
+                        else:
+                            logger.debug("schedule_homework_reminders: scheduler_bot is set, calling send_hw_reminder for hw_id=%s", hw_id)
+                            send_hw_reminder(hw_id, days_before, self.db_path)
+                            logger.info("schedule_homework_reminders: successfully sent immediate reminder for hw_id=%s", hw_id)
+                    except Exception as e:
+                        logger.exception("schedule_homework_reminders: failed to send immediate reminder for hw_id=%s: %s", hw_id, e)
+                    # لا نحتاج لجدولة التذكير لأنه تم إرساله فوراً
+                    continue
+                # إذا كان الموعد في المستقبل، استمر في جدولة التذكير في وقت الموعد
+            else:
+                # للتذكيرات الأخرى (days_before > 0): تخطّ إذا كانت في الماضي
+                if time_diff < 0:
+                    logger.debug("schedule_homework_reminders: skipping past reminder for hw_id=%s days_before=%s (run_dt=%s, diff=%s seconds)", 
+                                hw_id, days_before, run_dt, time_diff)
+                    continue
 
+            # جدولة التذكير في وقت run_dt
             job_id = f"hw-{hw_id}-{days_before}"
             try:
                 self.scheduler.remove_job(job_id)

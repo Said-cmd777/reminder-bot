@@ -76,7 +76,15 @@ else:
 # ============================================
 # Database & Storage
 # ============================================
-DB_PATH = os.getenv("DB_PATH", "reminders.db")
+# على Replit: احفظ DB في مجلد مستقر
+if os.getenv("REPL_ID") or os.getenv("REPLIT_DB_URL"):
+    # على Replit - استخدم مجلد مستقر
+    db_dir = os.path.expanduser("~/.local/share")
+    os.makedirs(db_dir, exist_ok=True)
+    DB_PATH = os.path.join(db_dir, "reminders.db")
+    logger.info(f"Using Replit database path: {DB_PATH}")
+else:
+    DB_PATH = os.getenv("DB_PATH", "reminders.db")
 BACKUP_DIR = os.getenv("BACKUP_DIR") or "backups"
 
 
