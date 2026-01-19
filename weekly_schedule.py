@@ -86,16 +86,16 @@ SCHEDULE_DAY_TO_WEEKDAY = {
 def get_current_week_number() -> int:
     """
     Get current week number since a reference date.
-    Returns 0 for weeks with Algorithm1 lab AND Statistics lab, 1 for weeks without.
-    Reference: User said:
-    - They studied Algorithm1 lab this week (week 0)
-    - They will study Statistics lab this week (week 0)
-    So both labs are in week 0, neither in week 1
+    Returns 0 or 1 based on alternating weeks since reference date.
     
-    Note: This function uses a fallback reference date. For accurate calculation,
-    use get_alternating_week_config from database.
+    Reference: Nov 15, 2025 (Saturday) = Week 0
+    - Group 02 & 04: Week 0 = has labs (normal logic)
+    - Group 01 & 03: Week 0 = no labs; Week 1 = has labs (reversed logic)
+    
+    Both Algorithm1 lab and Statistics lab are in the same week.
+    Note: For accurate calculation, use get_alternating_week_config from database.
     """
-    # Updated reference date: 2025-11-15 (Saturday, Week 0 for Groups 2 & 4)
+    # Reference date: 2025-11-15 (Saturday, Week 0)
     reference_date = datetime(2025, 11, 15)
     today = datetime.now()
     days_diff = (today - reference_date).days
@@ -156,6 +156,61 @@ def format_class_entry(entry: Dict) -> str:
         return f"📚 {time_str} - {course} ({location})"
 
 
+def debug_alternating_classes(group_number: str) -> str:
+    """Debug function to check alternating classes logic."""
+    import logging
+    logging.basicConfig(level=logging.DEBUG)
+    
+    current_week = get_current_week_number()
+    algo_lab_week = is_algorithm1_lab_week()
+    stats_lab_week = is_statistics_lab_week()
+    
+    result = f"""
+🔍 Debug Info for Group {group_number}:
+- Current Week Number: {current_week}
+- Algorithm1 Lab Week: {algo_lab_week}
+- Statistics Lab Week: {stats_lab_week}
+
+Alternating Logic:
+"""
+    if group_number in ["02", "04"]:
+        result += f"  Group {group_number} (EVEN): Normal logic\n"
+        result += f"  - Show labs in Week 0: {current_week == 0} ({'✅ YES' if current_week == 0 else '❌ NO'})\n"
+    else:
+        result += f"  Group {group_number} (ODD): Reversed logic\n"
+        result += f"  - Show labs in Week 1: {current_week == 1} ({'✅ YES' if current_week == 1 else '❌ NO'})\n"
+    
+    return result
+
+
+def debug_group_schedule(group_number: str, day: str) -> str:
+    """Debug function to check what's being returned from database."""
+    try:
+        from db_schedule import get_schedule_classes
+        from db_utils import db_connection
+        
+        result = f"📋 Schedule for Group {group_number} on {day}:\n"
+        
+        with db_connection() as conn:
+            db_classes = get_schedule_classes(conn, group_number, day.lower())
+            
+            if not db_classes:
+                result += "❌ No classes found in database!\n"
+                return result
+            
+            for cls in db_classes:
+                cls_dict = dict(cls)
+                result += f"\n📌 {cls_dict.get('course', 'Unknown')}\n"
+                result += f"   Time: {cls_dict.get('time_start')}-{cls_dict.get('time_end')}\n"
+                result += f"   Type: {cls_dict.get('class_type')}\n"
+                result += f"   Alternating: {bool(cls_dict.get('is_alternating', 0))}\n"
+                result += f"   Alt Key: {cls_dict.get('alternating_key')}\n"
+        
+        return result
+    except Exception as e:
+        return f"❌ Error: {e}"
+
+
 def get_group_schedule(group_number: str, day: str) -> List[Dict]:
     """
     Get schedule for a specific group and day.
@@ -167,9 +222,11 @@ def get_group_schedule(group_number: str, day: str) -> List[Dict]:
         from db_schedule import get_schedule_classes, get_alternating_week_config
         from db_utils import db_connection
         from datetime import datetime, timedelta
+        import logging
         
         with db_connection() as conn:
             db_classes = get_schedule_classes(conn, group_number, day.lower())
+            logging.debug(f"get_group_schedule: group={group_number}, day={day}, db_classes={len(list(db_classes)) if db_classes else 0} items")
             
             if db_classes:
                 
@@ -198,17 +255,17 @@ def get_group_schedule(group_number: str, day: str) -> List[Dict]:
                                         else:
                                             week_number = (days_diff // 7) % 2
                                         
-                                        # Updated logic (as of Nov 14, 2025):
-                                        # Group 2 & 4: Week 0 = has lab (this week), Week 1 = no lab (normal logic)
-                                        # Group 1 & 3: Week 0 = no lab, Week 1 = has lab (next week, reversed logic)
+                                        # Alternating week logic:
+                                        # Group 02 & 04 (even): Normal logic - show lab in Week 0 only
+                                        # Group 01 & 03 (odd): Reversed logic - show lab in Week 1 only
                                         if group_number in ["02", "04"]:
-                                            # Group 2 & 4: normal logic (week 0 = has lab, week 1 = no lab)
+                                            # Group 02 & 04: Show alternating class only in Week 0
                                             if week_number != 0:
-                                                continue  # Skip this class (only show in week 0)
+                                                continue  # Skip this class (not in Week 0)
                                         else:
-                                            # Group 1, 3, and others: reversed logic (week 0 = no lab, week 1 = has lab)
+                                            # Group 01 & 03: Show alternating class only in Week 1
                                             if week_number != 1:
-                                                continue  # Skip this class (only show in week 1)
+                                                continue  # Skip this class (not in Week 1)
                                 except Exception as alt_error:
                                     # إذا فشل التحقق من الحصة الدورية، نتخطاها
                                     import logging
@@ -244,31 +301,33 @@ def get_group_schedule(group_number: str, day: str) -> List[Dict]:
             schedule = GROUP_1_SCHEDULE.get(day.lower(), [])
             
             # Filter alternating classes based on current week
-            # Updated logic: Group 1 now uses reversed logic (Week 0 = no lab, Week 1 = has lab)
-            # But for hardcoded fallback, we use database config if available
+            # Hardcoded Group 01 uses reversed logic: Week 1 = has lab
+            # (Week 0 = no lab, Week 1 = has lab)
             filtered_schedule = []
             for entry in schedule:
                 try:
                     if entry.get("alternating", False):
                         alternating_key = entry.get("alternating_key", "")
                         if alternating_key == "algorithm1":
-                            # Group 1: Week 1 = has lab (reversed logic)
-                            if not is_algorithm1_lab_week():  # Week 1 (reversed)
+                            # Group 01: Show lab only in Week 1 (reversed logic)
+                            # is_algorithm1_lab_week() returns True for Week 0
+                            # So we show the lab when is_algorithm1_lab_week() is False (Week 1)
+                            if not is_algorithm1_lab_week():
                                 filtered_schedule.append(entry)
                         elif alternating_key == "statistics1":
-                            # Group 1: Week 1 = has lab (reversed logic)
-                            if not is_statistics_lab_week():  # Week 1 (reversed)
+                            # Group 01: Show lab only in Week 1 (reversed logic)
+                            if not is_statistics_lab_week():
                                 filtered_schedule.append(entry)
                         else:
-                            # Fallback for other alternating classes
+                            # Fallback for other alternating classes - include them
                             filtered_schedule.append(entry)
                     else:
+                        # Non-alternating class - always include
                         filtered_schedule.append(entry)
                 except Exception as entry_error:
-                    # إذا فشل معالجة حصة واحدة، نتخطاها
+                    # If processing a single entry fails, log and continue
                     import logging
                     logging.warning(f"Failed to process hardcoded entry: {entry_error}")
-                    # لا نستخدم continue هنا لأننا في حلقة for
                     pass
             
             return filtered_schedule
@@ -427,19 +486,18 @@ def format_weekly_schedule(group_number: str) -> str:
                         continue
                 
                 if has_alternating:
-                    text += "\n📌 ملاحظة:\n"
-                    # Check if this group has alternating labs this week
-                    # Updated logic (as of Nov 14, 2025):
-                    # Group 2 & 4: Week 0 = has lab (normal logic)
-                    # Group 1 & 3: Week 1 = has lab (reversed logic)
+                    text += "\n📌 ملاحظة على الحصص الدورية:\n"
+                    # Alternating week info for this group
+                    # Group 02 & 04: Normal logic - show labs in Week 0
+                    # Group 01 & 03: Reversed logic - show labs in Week 1
                     if group_number in ["02", "04"]:
-                        # Group 2 & 4: normal logic (Week 0 = has lab, Week 1 = no lab)
-                        algorithm1_has_lab = is_algorithm1_lab_week()  # Week 0
-                        statistics1_has_lab = is_statistics_lab_week()  # Week 0
+                        # Group 02 & 04: Normal logic (Week 0 = has lab, Week 1 = no lab)
+                        algorithm1_has_lab = is_algorithm1_lab_week()  # True in Week 0
+                        statistics1_has_lab = is_statistics_lab_week()  # True in Week 0
                     else:
-                        # Group 1, 3, and others: reversed logic (Week 0 = no lab, Week 1 = has lab)
-                        algorithm1_has_lab = not is_algorithm1_lab_week()  # Week 1 (reversed)
-                        statistics1_has_lab = not is_statistics_lab_week()  # Week 1 (reversed)
+                        # Group 01 & 03: Reversed logic (Week 0 = no lab, Week 1 = has lab)
+                        algorithm1_has_lab = not is_algorithm1_lab_week()  # True in Week 1
+                        statistics1_has_lab = not is_statistics_lab_week()  # True in Week 1
                     
                     text += "• Laboratory Session Algorithm1 (الاثنين) دورية - هذا الأسبوع: "
                     text += "✅ موجودة" if algorithm1_has_lab else "❌ غير موجودة"
