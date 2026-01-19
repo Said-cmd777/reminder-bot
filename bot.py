@@ -25,7 +25,7 @@ def home():
 
 def run_flask():
     try:
-        app.run(host='0.0.0.0', port=8080)
+        app.run(host='0.0.0.0', port=5000)
     except Exception as e:
         print(f"Flask error: {e}")
 
@@ -33,7 +33,7 @@ def keep_alive():
     """Start Flask server in background thread"""
     t = Thread(target=run_flask, daemon=True)
     t.start()
-    print("✅ Keep-Alive server started on port 8080")
+    print("✅ Keep-Alive server started on port 5000")
 
 
 import importlib.util
