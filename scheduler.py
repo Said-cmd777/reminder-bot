@@ -329,6 +329,7 @@ class SchedulerManager:
         if PYTZ_AVAILABLE and hasattr(self, 'timezone') and self.timezone:
             # إذا كان due timezone-aware، استخدم نفس timezone للوقت الحالي
             now = datetime.now(self.timezone)
+            logger.info("Current Time (Algiers): %s", now)
             logger.debug("schedule_homework_reminders: using timezone-aware datetime for now: %s", now)
         else:
             # بدون timezone - naive datetime
