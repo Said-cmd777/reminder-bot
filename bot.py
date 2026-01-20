@@ -4,6 +4,8 @@ import sys
 import signal
 import traceback
 import os
+import time
+from datetime import datetime, timezone
 import telebot
 
 from config import BOT_TOKEN, DB_PATH, BACKUP_DIR, LOG_FILE
@@ -18,10 +20,23 @@ from flask import Flask
 from threading import Thread
 
 app = Flask('')
+_KEEP_ALIVE_START = time.time()
 
 @app.route('/')
 def home():
     return "🤖 Homework Bot is alive!"
+
+@app.route('/health')
+def health():
+    uptime_seconds = int(time.time() - _KEEP_ALIVE_START)
+    scheduler_running = bool(sch_mgr and getattr(sch_mgr, "scheduler", None) and sch_mgr.scheduler.running)
+    return {
+        "status": "ok",
+        "uptime_seconds": uptime_seconds,
+        "scheduler_running": scheduler_running,
+        "db_connected": bool(conn),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
 
 def run_flask():
     try:
