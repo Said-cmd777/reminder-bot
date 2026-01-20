@@ -10,6 +10,7 @@ from config import BOT_TOKEN, DB_PATH, BACKUP_DIR, LOG_FILE
 from utils import init_logging
 from db import get_conn, ensure_tables
 from scheduler import SchedulerManager
+from auto_init_schedules import auto_init_schedules
 
 # ============================================
 # Keep-Alive for Replit
@@ -159,6 +160,11 @@ if __name__ == "__main__":
         conn = get_conn(DB_PATH)
         ensure_tables(conn)
         logger.info("Database connection ready.")
+        
+        # Auto-initialize schedule data if needed (critical for cloud platforms)
+        logger.info("Checking schedule data...")
+        auto_init_schedules(DB_PATH)
+        logger.info("Schedule data check completed.")
         
         # Scheduler
         logger.info("Initializing scheduler...")
