@@ -13,6 +13,9 @@ from utils import init_logging
 from db import get_conn, ensure_tables
 from scheduler import SchedulerManager
 
+logger = init_logging(LOG_FILE)
+logger.info("Starting bot.py")
+
 # ============================================
 # Keep-Alive for Replit
 # ============================================
@@ -80,9 +83,6 @@ import sys
 sys.modules["handlers"] = handlers_module
 register_handlers = handlers_module.register_handlers
 
-
-logger = init_logging(LOG_FILE)
-logger.info("Starting bot.py")
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
