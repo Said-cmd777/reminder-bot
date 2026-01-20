@@ -35,11 +35,13 @@ def health():
     scheduler = sch_mgr.scheduler if sch_mgr else None
     if scheduler:
         scheduler_running = bool(getattr(scheduler, "running", False))
-    db_connected = bool(conn)
+    db_connected = False
     if conn:
         try:
             conn.execute("SELECT 1")
+            db_connected = True
         except Exception:
+            logger.warning("Health check: database connection failed", exc_info=True)
             db_connected = False
     health_status = "ok" if scheduler_running and db_connected else "degraded"
     status_code = 200 if health_status == "ok" else 503
