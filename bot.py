@@ -41,7 +41,7 @@ def health():
     db_connected = False
     if conn:
         try:
-            conn.execute("SELECT 1")
+            conn.execute("SELECT 1").fetchone()
             db_connected = True
         except Exception:
             logger.warning("Health check: database connection failed", exc_info=True)
