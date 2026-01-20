@@ -28,6 +28,8 @@ def home():
 
 @app.route('/health')
 def health():
+    global conn
+    global sch_mgr
     uptime_seconds = int(time.time() - _KEEP_ALIVE_START)
     scheduler_running = False
     if sch_mgr and getattr(sch_mgr, "scheduler", None):
