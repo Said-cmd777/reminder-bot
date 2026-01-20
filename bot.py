@@ -29,12 +29,20 @@ def home():
 @app.route('/health')
 def health():
     uptime_seconds = int(time.time() - _KEEP_ALIVE_START)
-    scheduler_running = bool(sch_mgr and getattr(sch_mgr, "scheduler", None) and sch_mgr.scheduler.running)
+    scheduler_running = False
+    if sch_mgr and getattr(sch_mgr, "scheduler", None):
+        scheduler_running = bool(getattr(sch_mgr.scheduler, "running", False))
+    db_connected = bool(conn)
+    if conn:
+        try:
+            conn.execute("SELECT 1")
+        except Exception:
+            db_connected = False
     return {
         "status": "ok",
         "uptime_seconds": uptime_seconds,
         "scheduler_running": scheduler_running,
-        "db_connected": bool(conn),
+        "db_connected": db_connected,
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
 
