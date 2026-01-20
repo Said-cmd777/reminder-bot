@@ -32,21 +32,24 @@ def health():
     global sch_mgr
     uptime_seconds = int(time.time() - _KEEP_ALIVE_START)
     scheduler_running = False
-    if sch_mgr and getattr(sch_mgr, "scheduler", None):
-        scheduler_running = bool(getattr(sch_mgr.scheduler, "running", False))
+    scheduler = sch_mgr.scheduler if sch_mgr else None
+    if scheduler:
+        scheduler_running = bool(getattr(scheduler, "running", False))
     db_connected = bool(conn)
     if conn:
         try:
             conn.execute("SELECT 1")
         except Exception:
             db_connected = False
+    health_status = "ok" if scheduler_running and db_connected else "degraded"
+    status_code = 200 if health_status == "ok" else 503
     return {
-        "status": "ok",
+        "status": health_status,
         "uptime_seconds": uptime_seconds,
         "scheduler_running": scheduler_running,
         "db_connected": db_connected,
         "timestamp": datetime.now(timezone.utc).isoformat(),
-    }
+    }, status_code
 
 def run_flask():
     try:
