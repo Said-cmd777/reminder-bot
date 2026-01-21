@@ -6,12 +6,14 @@ from typing import Iterator, Optional, List, Tuple, Any
 import sqlite3
 import logging
 from db import get_conn
+from db_adapter import close_conn
+from db_config import DB_TYPE
 
 logger = logging.getLogger(__name__)
 
 
 @contextmanager
-def db_connection(auto_commit: bool = True) -> Iterator[sqlite3.Connection]:
+def db_connection(auto_commit: bool = True) -> Iterator:
     """
     Context manager for database connections.
     
@@ -33,11 +35,11 @@ def db_connection(auto_commit: bool = True) -> Iterator[sqlite3.Connection]:
             conn.rollback()
         raise
     finally:
-        conn.close()
+        close_conn(conn)
 
 
 @contextmanager
-def db_transaction(conn: Optional[sqlite3.Connection] = None):
+def db_transaction(conn=None):
     """
     Context manager for atomic transactions.
     
@@ -62,7 +64,7 @@ def db_transaction(conn: Optional[sqlite3.Connection] = None):
         raise
     finally:
         if own_conn:
-            conn.close()
+            close_conn(conn)
 
 
 def safe_get(row, key: str, default=None, warn: bool = False):
@@ -92,10 +94,28 @@ def safe_get(row, key: str, default=None, warn: bool = False):
 def execute_query(query: str, params: tuple = (), fetch_one: bool = False):
     """Execute query and return results."""
     with db_connection() as conn:
-        conn.row_factory = sqlite3.Row
-        cur = conn.cursor()
-        cur.execute(query, params)
-        return cur.fetchone() if fetch_one else cur.fetchall()
+        if DB_TYPE == "sqlite":
+            conn.row_factory = sqlite3.Row
+            cur = conn.cursor()
+            cur.execute(query, params)
+        else:
+            # PostgreSQL
+            import psycopg2.extras
+            cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            cur.execute(query, params)
+        
+        if fetch_one:
+            result = cur.fetchone()
+            if DB_TYPE == "postgresql" and result:
+                from db_adapter import Row
+                return Row(dict(result))
+            return result
+        else:
+            results = cur.fetchall()
+            if DB_TYPE == "postgresql":
+                from db_adapter import Row
+                return [Row(dict(r)) for r in results]
+            return results
 
 
 def get_single_value(query: str, params: tuple = (), default=None):
