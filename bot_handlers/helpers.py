@@ -64,9 +64,12 @@ def is_main_menu_button(text: Optional[str]) -> bool:
     return (text or "").strip() in MAIN_MENU_BUTTONS
 
 
-def registration_kb():
+def registration_kb(include_groups: bool = False):
     """Create registration keyboard without main menu buttons."""
     kb = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
+    if include_groups:
+        kb.row("Group 1", "Group 2")
+        kb.row("Group 3", "Group 4")
     kb.row(CANCEL_TEXT)
     return kb
 
