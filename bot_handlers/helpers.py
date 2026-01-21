@@ -8,6 +8,7 @@ from telebot import types
 
 from config import ADMIN_IDS
 from db_utils import safe_get
+from utils import CANCEL_TEXT
 from constants import (
     CALLBACK_HW_DONE, CALLBACK_HW_UNDONE, CALLBACK_HW_PDF, CALLBACK_HW_EDIT_ID,
     CALLBACK_HW_DELETE_ID, CALLBACK_HW_BACK, CALLBACK_HW_LIST,
@@ -27,7 +28,8 @@ from constants import (
     CALLBACK_NOTIFICATION_SETTINGS, CALLBACK_NOTIFICATION_DISABLE_HOMEWORK, CALLBACK_NOTIFICATION_ENABLE_HOMEWORK,
     CALLBACK_NOTIFICATION_DISABLE_MANUAL, CALLBACK_NOTIFICATION_ENABLE_MANUAL,
     CALLBACK_NOTIFICATION_DISABLE_CUSTOM, CALLBACK_NOTIFICATION_ENABLE_CUSTOM,
-    CALLBACK_NOTIFICATION_DISABLE_ALL, CALLBACK_NOTIFICATION_ENABLE_ALL
+    CALLBACK_NOTIFICATION_DISABLE_ALL, CALLBACK_NOTIFICATION_ENABLE_ALL,
+    MAIN_MENU_BUTTONS
 )
 
 logger = logging.getLogger(__name__)
@@ -52,8 +54,20 @@ def format_homework_text(row: Dict[str, Any]) -> str:
 def main_menu_kb():
     """Create main menu keyboard."""
     kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    kb.row("Homeworks")
-    kb.row("Weekly Schedule")
+    for label in MAIN_MENU_BUTTONS:
+        kb.row(label)
+    return kb
+
+
+def is_main_menu_button(text: Optional[str]) -> bool:
+    """Check if text matches a main menu button label."""
+    return (text or "").strip() in MAIN_MENU_BUTTONS
+
+
+def registration_kb():
+    """Create registration keyboard without main menu buttons."""
+    kb = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
+    kb.row(CANCEL_TEXT)
     return kb
 
 
@@ -211,4 +225,3 @@ def notification_settings_kb(homework_enabled: bool, manual_enabled: bool, custo
     
     kb.add(types.InlineKeyboardButton("↩️ رجوع", callback_data=CALLBACK_HW_BACK))
     return kb
-

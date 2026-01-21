@@ -83,6 +83,7 @@ CALLBACK_NOTIFICATION_ENABLE_ALL = "notification_enable_all"
 DEFAULT_REMINDERS = "3,2,1"
 MAX_INPUT_LENGTH = 2000
 MAX_DESCRIPTION_LENGTH = 5000
+MAIN_MENU_BUTTONS = ("Homeworks", "Weekly Schedule")
 
 
 PENDING_STEP_TARGET_TYPE = "target_type"
@@ -92,4 +93,3 @@ PENDING_STEP_ENTER_CONTENT = "enter_content"
 PENDING_STEP_ENTER_CHAT = "enter_chat"
 PENDING_STEP_ENTER_THREAD = "enter_thread_or_reply"
 PENDING_STEP_ENTER_DATETIME = "enter_datetime"
-
