@@ -62,7 +62,7 @@ logger = logging.getLogger(__name__)
 
 from bot_handlers.base import BotHandlers, StateManager, StateType
 from bot_handlers.helpers import (
-    is_admin, format_homework_text, main_menu_kb, cancel_inline_kb,
+    is_admin, format_homework_text, main_menu_kb, cancel_inline_kb, registration_kb,
     hw_item_kb, hw_main_kb, try_get_chat_variants,
     custom_reminder_main_kb, custom_reminder_item_kb,
     weekly_schedule_group_kb, weekly_schedule_time_kb,
@@ -389,7 +389,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
             msg = bot.send_message(
                 chat_id,
                 "📝 لإكمال التسجيل:\n\nيرجى إرسال الاسم واللقب (مثال: خالد السعيد) ثم المجموعة (مثال: 01 أو 02 أو 03 أو 04).\n\nأرسل الاسم الآن:",
-                reply_markup=cancel_inline_kb()
+                reply_markup=registration_kb()
             )
             bot.register_next_step_handler(msg, handle_name_input)
         except Exception:
@@ -418,6 +418,9 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
                 logger.info(f"Registered user: id={m.from_user.id} username={username} name={first_name} {last_name}")
             except Exception:
                 logger.exception("Failed register_user in /start")
+
+            registration_complete = is_user_registration_complete(conn_local, m.from_user.id)
+            welcome_kb = main_menu_kb() if registration_complete else registration_kb()
 
             
             welcome_text = """🎉 **مرحباً بك في Reminder Bot!**
@@ -498,12 +501,12 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
             
             
             try:
-                bot.send_message(m.chat.id, welcome_text, parse_mode='Markdown', reply_markup=main_menu_kb())
+                bot.send_message(m.chat.id, welcome_text, parse_mode='Markdown', reply_markup=welcome_kb)
             except Exception:
                 
                 try:
                     welcome_text_plain = welcome_text.replace('**', '').replace('`', '')
-                    bot.send_message(m.chat.id, welcome_text_plain, reply_markup=main_menu_kb())
+                    bot.send_message(m.chat.id, welcome_text_plain, reply_markup=welcome_kb)
                 except Exception:
                     logger.exception("Failed to send welcome message")
 
@@ -2269,6 +2272,14 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
         text = (msg.text or "").strip()
         with _pending_registration_lock:
             pending = _pending_registration.get(chat_id)
+        if text in ("Homeworks", "Weekly Schedule"):
+            msg_retry = bot.send_message(
+                chat_id,
+                "يرجى إدخال الاسم واللقب أولاً لإكمال التسجيل.",
+                reply_markup=registration_kb()
+            )
+            bot.register_next_step_handler(msg_retry, handle_name_input)
+            return
         if is_cancel_text(text) or not pending or not isinstance(pending, dict):
             with _pending_registration_lock:
                 _pending_registration.pop(chat_id, None)
@@ -2292,7 +2303,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
         msg_group = bot.send_message(
             chat_id,
             "✅ تم حفظ الاسم.\n\nالآن أرسل رقم المجموعة (مثال: 01 أو 02 أو 03 أو 04):",
-            reply_markup=cancel_inline_kb()
+            reply_markup=registration_kb()
         )
         bot.register_next_step_handler(msg_group, handle_group_input)
 
@@ -2301,6 +2312,14 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
         text = (msg.text or "").strip()
         with _pending_registration_lock:
             pending = _pending_registration.get(chat_id)
+        if text in ("Homeworks", "Weekly Schedule"):
+            msg_retry = bot.send_message(
+                chat_id,
+                "يرجى إدخال رقم المجموعة لإكمال التسجيل.",
+                reply_markup=registration_kb()
+            )
+            bot.register_next_step_handler(msg_retry, handle_group_input)
+            return
         if is_cancel_text(text) or not pending or not isinstance(pending, dict):
             with _pending_registration_lock:
                 _pending_registration.pop(chat_id, None)

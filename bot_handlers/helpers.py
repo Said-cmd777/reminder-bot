@@ -57,6 +57,13 @@ def main_menu_kb():
     return kb
 
 
+def registration_kb():
+    """Create registration keyboard without main menu buttons."""
+    kb = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
+    kb.row("إلغاء")
+    return kb
+
+
 def cancel_inline_kb():
     """Create cancel inline keyboard."""
     kb = types.InlineKeyboardMarkup()
@@ -211,4 +218,3 @@ def notification_settings_kb(homework_enabled: bool, manual_enabled: bool, custo
     
     kb.add(types.InlineKeyboardButton("↩️ رجوع", callback_data=CALLBACK_HW_BACK))
     return kb
-
