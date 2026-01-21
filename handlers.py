@@ -2290,7 +2290,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
 
         is_valid, error = validate_text_input(text, MAX_INPUT_LENGTH)
         if not is_valid:
-            bot.send_message(chat_id, f"خطأ: {error}. أرسل الاسم مرة أخرى (أو 'إلغاء'):", reply_markup=cancel_inline_kb())
+            bot.send_message(chat_id, f"خطأ: {error}. أرسل الاسم مرة أخرى (أو 'إلغاء'):", reply_markup=registration_kb())
             bot.register_next_step_handler(msg, handle_name_input)
             return
 
@@ -2325,7 +2325,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
 
         is_valid, error = validate_text_input(text, MAX_INPUT_LENGTH)
         if not is_valid:
-            msg_retry = bot.send_message(chat_id, f"خطأ: {error}. أرسل المجموعة مرة أخرى (أو 'إلغاء'):", reply_markup=cancel_inline_kb())
+            msg_retry = bot.send_message(chat_id, f"خطأ: {error}. أرسل المجموعة مرة أخرى (أو 'إلغاء'):", reply_markup=registration_kb())
             bot.register_next_step_handler(msg_retry, handle_group_input)
             return
 
