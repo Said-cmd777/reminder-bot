@@ -54,7 +54,8 @@ from constants import (
     CALLBACK_NOTIFICATION_SETTINGS, CALLBACK_NOTIFICATION_DISABLE_HOMEWORK, CALLBACK_NOTIFICATION_ENABLE_HOMEWORK,
     CALLBACK_NOTIFICATION_DISABLE_MANUAL, CALLBACK_NOTIFICATION_ENABLE_MANUAL,
     CALLBACK_NOTIFICATION_DISABLE_CUSTOM, CALLBACK_NOTIFICATION_ENABLE_CUSTOM,
-    CALLBACK_NOTIFICATION_DISABLE_ALL, CALLBACK_NOTIFICATION_ENABLE_ALL
+    CALLBACK_NOTIFICATION_DISABLE_ALL, CALLBACK_NOTIFICATION_ENABLE_ALL,
+    REGISTRATION_GROUP_NORMALIZATION, REGISTRATION_GROUP_OPTIONS
 )
 
 logger = logging.getLogger(__name__)
@@ -388,7 +389,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
         try:
             msg = bot.send_message(
                 chat_id,
-                "📝 لإكمال التسجيل:\n\nيرجى إرسال الاسم واللقب (مثال: خالد السعيد) ثم المجموعة (مثال: 01 أو 02 أو 03 أو 04).\n\nأرسل الاسم الآن:",
+                "📝 لإكمال التسجيل:\n\nيرجى إرسال الاسم واللقب (مثال: خالد السعيد) ثم اختيار المجموعة من الخيارات المتاحة.\n\nأرسل الاسم الآن:",
                 reply_markup=registration_kb()
             )
             bot.register_next_step_handler(msg, handle_name_input)
@@ -450,7 +451,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
    • عرض جدول الغد
    • عرض الجدول الأسبوعي الكامل (مع PDF)
    • عرض معلومات الحصة مع رابط Google Maps
-   • دعم 4 مجموعات (Group 01, 02, 03, 04)
+   • دعم 4 مجموعات (Group 1, 2, 3, 4)
 
 **3️⃣ التذكيرات المخصصة**
    • إضافة تذكير شخصي
@@ -469,7 +470,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
 
 **🔹 للوصول إلى الجدول الأسبوعي:**
    1. اضغط على زر "Weekly Schedule" في القائمة الرئيسية
-   2. اختر مجموعتك (Group 01, 02, 03, أو 04)
+   2. اختر مجموعتك (Group 1, 2, 3, أو 4)
    3. اختر نوع العرض:
       • 📅 اليوم - حصص اليوم الحالي
       • 📅 الغد - حصص الغد
@@ -495,7 +496,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 ⚠️ **ملاحظة مهمة:**
-لإكمال التسجيل، يرجى إدخال الاسم واللقب ثم رقم المجموعة كما سيُطلب منك أدناه.
+لإكمال التسجيل، يرجى إدخال الاسم واللقب ثم اختيار المجموعة من الخيارات المتاحة كما سيُطلب منك أدناه.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"""
             
@@ -2267,9 +2268,9 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
             logger.exception("Failed scheduling reminders after insert")
 
     
-    def _prompt_registration_input(chat_id: int, message: str, handler):
+    def _prompt_registration_input(chat_id: int, message: str, handler, include_groups: bool = False):
         try:
-            msg_retry = bot.send_message(chat_id, message, reply_markup=registration_kb())
+            msg_retry = bot.send_message(chat_id, message, reply_markup=registration_kb(include_groups=include_groups))
             bot.register_next_step_handler(msg_retry, handler)
         except Exception:
             logger.exception("Failed to prompt for registration input")
@@ -2305,8 +2306,8 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
             _pending_registration[chat_id] = {"step": "group", "display_name": display_name}
         msg_group = bot.send_message(
             chat_id,
-            "✅ تم حفظ الاسم.\n\nالآن أرسل رقم المجموعة (مثال: 01 أو 02 أو 03 أو 04):",
-            reply_markup=registration_kb()
+            "✅ تم حفظ الاسم.\n\nالآن اختر مجموعتك من الخيارات المتاحة:",
+            reply_markup=registration_kb(include_groups=True)
         )
         bot.register_next_step_handler(msg_group, handle_group_input)
 
@@ -2314,7 +2315,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
         chat_id = msg.chat.id
         text = (msg.text or "").strip()
         if is_main_menu_button(text):
-            _prompt_registration_input(chat_id, "يرجى إدخال رقم المجموعة لإكمال التسجيل.", handle_group_input)
+            _prompt_registration_input(chat_id, "يرجى اختيار رقم المجموعة لإكمال التسجيل.", handle_group_input, include_groups=True)
             return
         with _pending_registration_lock:
             pending = _pending_registration.get(chat_id)
@@ -2329,12 +2330,23 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
 
         is_valid, error = validate_text_input(text, MAX_INPUT_LENGTH)
         if not is_valid:
-            msg_retry = bot.send_message(chat_id, f"خطأ: {error}. أرسل المجموعة مرة أخرى (أو 'إلغاء'):", reply_markup=registration_kb())
+            msg_retry = bot.send_message(chat_id, f"خطأ: {error}. اختر المجموعة مرة أخرى (أو 'إلغاء'):", reply_markup=registration_kb(include_groups=True))
+            bot.register_next_step_handler(msg_retry, handle_group_input)
+            return
+
+        normalized_group = REGISTRATION_GROUP_NORMALIZATION.get(text.casefold())
+        if not normalized_group:
+            options_text = ", ".join(REGISTRATION_GROUP_OPTIONS)
+            msg_retry = bot.send_message(
+                chat_id,
+                f"يرجى اختيار المجموعة فقط من الخيارات: {options_text}.",
+                reply_markup=registration_kb(include_groups=True)
+            )
             bot.register_next_step_handler(msg_retry, handle_group_input)
             return
 
         display_name = pending.get("display_name")
-        group_number = text
+        group_number = normalized_group
         user_id = msg.from_user.id
 
         with db_connection() as conn_local:
