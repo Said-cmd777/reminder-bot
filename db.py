@@ -98,6 +98,16 @@ def ensure_tables(conn: Optional[sqlite3.Connection] = None):
       FOREIGN KEY (reminder_id) REFERENCES custom_reminders(id) ON DELETE CASCADE
     );
     """)
+
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS faq_entries (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      question TEXT NOT NULL,
+      answer TEXT NOT NULL,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+    """)
     
     cur.execute("""
     CREATE TABLE IF NOT EXISTS weekly_schedule_classes (
@@ -530,6 +540,58 @@ def is_custom_reminder_done_for_user(conn: sqlite3.Connection, reminder_id: int,
     cur = conn.cursor()
     cur.execute("SELECT 1 FROM custom_reminder_completions WHERE reminder_id = ? AND user_id = ?", (reminder_id, user_id))
     return cur.fetchone() is not None
+
+
+def insert_faq_entry(conn: sqlite3.Connection, question: str, answer: str) -> int:
+    """Insert a FAQ entry."""
+    ensure_tables(conn)
+    cur = conn.cursor()
+    cur.execute("""
+        INSERT INTO faq_entries (question, answer, created_at, updated_at)
+        VALUES (?, ?, datetime('now'), datetime('now'))
+    """, (question, answer))
+    conn.commit()
+    return cur.lastrowid
+
+
+def get_faq_entry(conn: sqlite3.Connection, faq_id: int):
+    """Get a FAQ entry by ID."""
+    ensure_tables(conn)
+    conn.row_factory = sqlite3.Row
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM faq_entries WHERE id = ?", (faq_id,))
+    return cur.fetchone()
+
+
+def get_all_faq_entries(conn: sqlite3.Connection) -> List[sqlite3.Row]:
+    """Get all FAQ entries."""
+    ensure_tables(conn)
+    conn.row_factory = sqlite3.Row
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM faq_entries ORDER BY id")
+    return cur.fetchall()
+
+
+def update_faq_entry(conn: sqlite3.Connection, faq_id: int, question: str, answer: str) -> bool:
+    """Update a FAQ entry."""
+    ensure_tables(conn)
+    cur = conn.cursor()
+    cur.execute("""
+        UPDATE faq_entries
+        SET question = ?, answer = ?, updated_at = datetime('now')
+        WHERE id = ?
+    """, (question, answer, faq_id))
+    conn.commit()
+    return cur.rowcount > 0
+
+
+def delete_faq_entry(conn: sqlite3.Connection, faq_id: int) -> bool:
+    """Delete a FAQ entry."""
+    ensure_tables(conn)
+    cur = conn.cursor()
+    cur.execute("DELETE FROM faq_entries WHERE id = ?", (faq_id,))
+    conn.commit()
+    return cur.rowcount > 0
 
 
 def get_notification_settings(conn: sqlite3.Connection, user_id: int) -> Optional[sqlite3.Row]:

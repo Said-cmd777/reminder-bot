@@ -17,6 +17,11 @@ from constants import (
     CALLBACK_CUSTOM_REMINDER, CALLBACK_CUSTOM_REMINDER_ADD, CALLBACK_CUSTOM_REMINDER_LIST,
     CALLBACK_CUSTOM_REMINDER_DELETE, CALLBACK_CUSTOM_REMINDER_CONFIRM_DELETE,
     CALLBACK_CUSTOM_REMINDER_DONE, CALLBACK_CUSTOM_REMINDER_UNDONE,
+    CALLBACK_FAQ_LIST, CALLBACK_FAQ_VIEW, CALLBACK_FAQ_ADMIN,
+    CALLBACK_FAQ_ADMIN_ADD, CALLBACK_FAQ_ADMIN_EDIT, CALLBACK_FAQ_ADMIN_DELETE,
+    CALLBACK_FAQ_ADMIN_EDIT_SELECT, CALLBACK_FAQ_ADMIN_DELETE_SELECT,
+    CALLBACK_FAQ_ADMIN_DELETE_CONFIRM,
+    CALLBACK_FAQ_BACK,
     CALLBACK_WEEKLY_SCHEDULE, CALLBACK_WEEKLY_SCHEDULE_GROUP_01, CALLBACK_WEEKLY_SCHEDULE_GROUP_02,
     CALLBACK_WEEKLY_SCHEDULE_GROUP_03, CALLBACK_WEEKLY_SCHEDULE_GROUP_04,
     CALLBACK_WEEKLY_SCHEDULE_TODAY, CALLBACK_WEEKLY_SCHEDULE_TOMORROW, CALLBACK_WEEKLY_SCHEDULE_WEEK,
@@ -115,6 +120,7 @@ def hw_main_kb(user_id: int):
         kb.add(types.InlineKeyboardButton("🗑️ حذف واجب", callback_data=CALLBACK_HW_DELETE))
         kb.add(types.InlineKeyboardButton("⏱️ Manual reminder", callback_data=CALLBACK_MANUAL_REMINDER))
         kb.add(types.InlineKeyboardButton("⚙️ إدارة الجداول الأسبوعية", callback_data=CALLBACK_WEEKLY_SCHEDULE_ADMIN))
+        kb.add(types.InlineKeyboardButton("❓ إدارة الأسئلة الشائعة", callback_data=CALLBACK_FAQ_ADMIN))
     kb.add(types.InlineKeyboardButton("🔔 تذكيراتي المخصصة", callback_data=CALLBACK_CUSTOM_REMINDER))
     kb.add(types.InlineKeyboardButton("🔕 إعدادات الإشعارات", callback_data=CALLBACK_NOTIFICATION_SETTINGS))
     kb.add(types.InlineKeyboardButton("↩️ رجوع", callback_data=CALLBACK_HW_BACK))
@@ -139,6 +145,55 @@ def custom_reminder_item_kb(reminder_id: int, is_done: bool = False):
         kb.add(types.InlineKeyboardButton("✅ تم؟", callback_data=f"{CALLBACK_CUSTOM_REMINDER_DONE}{reminder_id}"))
     kb.add(types.InlineKeyboardButton("🗑️ حذف", callback_data=f"{CALLBACK_CUSTOM_REMINDER_DELETE}{reminder_id}"))
     kb.add(types.InlineKeyboardButton("↩️ رجوع", callback_data=CALLBACK_CUSTOM_REMINDER_LIST))
+    return kb
+
+
+def faq_list_kb(entries):
+    """Create FAQ list keyboard."""
+    kb = types.InlineKeyboardMarkup()
+    for entry in entries:
+        label = safe_get(entry, "question", "Question")
+        kb.add(types.InlineKeyboardButton(label, callback_data=f"{CALLBACK_FAQ_VIEW}{entry['id']}"))
+    kb.add(types.InlineKeyboardButton("↩️ رجوع", callback_data=CALLBACK_FAQ_BACK))
+    return kb
+
+
+def faq_item_kb():
+    """Create FAQ item keyboard."""
+    kb = types.InlineKeyboardMarkup()
+    kb.add(types.InlineKeyboardButton("↩️ رجوع", callback_data=CALLBACK_FAQ_LIST))
+    return kb
+
+
+def faq_admin_main_kb():
+    """Create FAQ admin menu keyboard."""
+    kb = types.InlineKeyboardMarkup()
+    kb.add(types.InlineKeyboardButton("➕ إضافة سؤال", callback_data=CALLBACK_FAQ_ADMIN_ADD))
+    kb.add(types.InlineKeyboardButton("✏️ تعديل سؤال", callback_data=CALLBACK_FAQ_ADMIN_EDIT))
+    kb.add(types.InlineKeyboardButton("🗑️ حذف سؤال", callback_data=CALLBACK_FAQ_ADMIN_DELETE))
+    kb.add(types.InlineKeyboardButton("↩️ رجوع", callback_data=CALLBACK_FAQ_LIST))
+    return kb
+
+
+def faq_admin_select_kb(entries, action: str):
+    """Create FAQ admin selection keyboard."""
+    kb = types.InlineKeyboardMarkup()
+    for entry in entries:
+        label = safe_get(entry, "question", "Question")
+        if action == "edit":
+            callback = f"{CALLBACK_FAQ_ADMIN_EDIT_SELECT}{entry['id']}"
+        else:
+            callback = f"{CALLBACK_FAQ_ADMIN_DELETE_SELECT}{entry['id']}"
+        kb.add(types.InlineKeyboardButton(label, callback_data=callback))
+    kb.add(types.InlineKeyboardButton("↩️ رجوع", callback_data=CALLBACK_FAQ_ADMIN))
+    return kb
+
+
+def faq_admin_delete_confirm_kb(faq_id: int):
+    """Create FAQ delete confirm keyboard."""
+    kb = types.InlineKeyboardMarkup()
+    kb.add(types.InlineKeyboardButton("نعم احذف", callback_data=f"{CALLBACK_FAQ_ADMIN_DELETE_CONFIRM}{faq_id}"))
+    kb.add(types.InlineKeyboardButton("إلغاء", callback_data=CALLBACK_FAQ_ADMIN))
     return kb
 
 

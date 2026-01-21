@@ -19,7 +19,8 @@ from db import (
     insert_custom_reminder, get_custom_reminder, get_all_custom_reminders_for_user, delete_custom_reminder,
     mark_custom_reminder_done, mark_custom_reminder_undone, is_custom_reminder_done_for_user,
     get_notification_setting, set_notification_setting, enable_all_notifications, disable_all_notifications,
-    get_notification_settings
+    get_notification_settings, insert_faq_entry, get_faq_entry, get_all_faq_entries,
+    update_faq_entry, delete_faq_entry
 )
 from db_utils import db_connection, safe_get
 from validators import (
@@ -40,6 +41,9 @@ from constants import (
     CALLBACK_CUSTOM_REMINDER, CALLBACK_CUSTOM_REMINDER_ADD, CALLBACK_CUSTOM_REMINDER_LIST,
     CALLBACK_CUSTOM_REMINDER_DELETE, CALLBACK_CUSTOM_REMINDER_CONFIRM_DELETE,
     CALLBACK_CUSTOM_REMINDER_DONE, CALLBACK_CUSTOM_REMINDER_UNDONE,
+    CALLBACK_FAQ_LIST, CALLBACK_FAQ_VIEW, CALLBACK_FAQ_ADMIN, CALLBACK_FAQ_ADMIN_ADD,
+    CALLBACK_FAQ_ADMIN_EDIT, CALLBACK_FAQ_ADMIN_DELETE, CALLBACK_FAQ_ADMIN_EDIT_SELECT,
+    CALLBACK_FAQ_ADMIN_DELETE_SELECT, CALLBACK_FAQ_ADMIN_DELETE_CONFIRM, CALLBACK_FAQ_BACK,
     CALLBACK_WEEKLY_SCHEDULE, CALLBACK_WEEKLY_SCHEDULE_GROUP_01, CALLBACK_WEEKLY_SCHEDULE_GROUP_02,
     CALLBACK_WEEKLY_SCHEDULE_GROUP_03, CALLBACK_WEEKLY_SCHEDULE_GROUP_04,
     CALLBACK_WEEKLY_SCHEDULE_TODAY, CALLBACK_WEEKLY_SCHEDULE_TOMORROW, CALLBACK_WEEKLY_SCHEDULE_WEEK,
@@ -67,6 +71,8 @@ from bot_handlers.helpers import (
     hw_item_kb, hw_main_kb, try_get_chat_variants,
     custom_reminder_main_kb, custom_reminder_item_kb,
     weekly_schedule_group_kb, weekly_schedule_time_kb,
+    faq_list_kb, faq_item_kb, faq_admin_main_kb,
+    faq_admin_select_kb, faq_admin_delete_confirm_kb,
     notification_settings_kb, is_main_menu_button
 )
 from bot_handlers.schedule_admin_helpers import (
@@ -269,9 +275,11 @@ _pending_add = {}
 _pending_manual = {}
 _pending_registration = {}
 _pending_schedule_admin = {}  
+_pending_faq_admin = {}
 _pending_lock = threading.Lock()
 _pending_registration_lock = threading.Lock()
 _pending_schedule_admin_lock = threading.Lock()
+_pending_faq_admin_lock = threading.Lock()
 
 
 _state_mgr: Optional[StateManager] = None
@@ -346,6 +354,9 @@ def cancel_operation(chat_id: int, message_id: Optional[int] = None):
     
     with _pending_schedule_admin_lock:
         _pending_schedule_admin.pop(chat_id, None)
+
+    with _pending_faq_admin_lock:
+        _pending_faq_admin.pop(chat_id, None)
     
     if message_id and global_bot:
         try:
@@ -564,6 +575,21 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
             logger.exception("Failed in /gettopic")
             bot.send_message(m.chat.id, "فشل الحصول على معلومات الموضوع — راجع اللوغ.")
 
+    def send_faq_list(chat_id: int):
+        with db_connection() as conn_local:
+            entries = get_all_faq_entries(conn_local)
+        if not entries:
+            bot.send_message(chat_id, "لا توجد أسئلة شائعة حالياً.", reply_markup=main_menu_kb())
+            return
+        kb = faq_list_kb(entries)
+        bot.send_message(chat_id, "📖 الأسئلة الشائعة:", reply_markup=kb)
+
+    @bot.message_handler(commands=['faq'])
+    def cmd_faq(m):
+        if not ensure_registration(m.chat.id, m.from_user.id):
+            return
+        send_faq_list(m.chat.id)
+
     
     @bot.message_handler(func=lambda msg: msg.text == "Homeworks")
     def open_hw_menu(m):
@@ -581,6 +607,13 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
         kb = weekly_schedule_group_kb()
         bot.send_message(m.chat.id, "Select your Group", reply_markup=kb)
         logger.info(f"Opened Weekly Schedule menu for user {m.from_user.id} in chat {m.chat.id}")
+
+    @bot.message_handler(func=lambda msg: msg.text == "FAQ")
+    def open_faq_menu(m):
+        if not ensure_registration(m.chat.id, m.from_user.id):
+            return
+        send_faq_list(m.chat.id)
+        logger.info(f"Opened FAQ menu for user {m.from_user.id} in chat {m.chat.id}")
 
     @bot.message_handler(func=lambda msg: msg.text == "Update Info")
     def update_user_info(m):
@@ -644,6 +677,19 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
             data == CALLBACK_ALTERNATING_ADD or
             data == CALLBACK_WEEKLY_SCHEDULE_ADMIN_ALTERNATING
         )
+
+        is_faq_callback = (
+            data == CALLBACK_FAQ_LIST or
+            data == CALLBACK_FAQ_ADMIN or
+            data == CALLBACK_FAQ_ADMIN_ADD or
+            data == CALLBACK_FAQ_ADMIN_EDIT or
+            data == CALLBACK_FAQ_ADMIN_DELETE or
+            data.startswith(CALLBACK_FAQ_VIEW) or
+            data.startswith(CALLBACK_FAQ_ADMIN_EDIT_SELECT) or
+            data.startswith(CALLBACK_FAQ_ADMIN_DELETE_SELECT) or
+            data.startswith(CALLBACK_FAQ_ADMIN_DELETE_CONFIRM) or
+            data == CALLBACK_FAQ_BACK
+        )
         
         with _pending_schedule_admin_lock:
             if chat_id in _pending_schedule_admin and not (is_location_callback or is_edit_callback or is_alternating_config_callback):
@@ -652,6 +698,10 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
                 if pm and pm.get("action") not in ["add_location", "edit_location_url", "edit_class", "edit_alternating_config", "add_alternating_config"]:
                     logger.info(f"[SCHEDULE ADMIN] Found pending operation for chat {chat_id}, clearing it due to callback: {data}")
                     _pending_schedule_admin.pop(chat_id, None)
+
+        with _pending_faq_admin_lock:
+            if chat_id in _pending_faq_admin and not is_faq_callback:
+                _pending_faq_admin.pop(chat_id, None)
                     
 
         
@@ -690,6 +740,132 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
                     is_done = is_homework_done_for_user(conn_check, r['id'], uid)
                 kb = hw_item_kb(uid, r['id'], is_done=is_done)
                 bot.send_message(chat_id, text, reply_markup=kb)
+            bot.answer_callback_query(c.id)
+            return
+
+        if data == CALLBACK_FAQ_LIST:
+            send_faq_list(chat_id)
+            bot.answer_callback_query(c.id)
+            return
+
+        if data == CALLBACK_FAQ_BACK:
+            bot.send_message(chat_id, "عاد للقائمة الرئيسية.", reply_markup=main_menu_kb())
+            bot.answer_callback_query(c.id)
+            return
+
+        if data.startswith(CALLBACK_FAQ_VIEW):
+            faq_id = int(data.split(":", 1)[1])
+            with db_connection() as conn_local:
+                entry = get_faq_entry(conn_local, faq_id)
+            if not entry:
+                bot.answer_callback_query(c.id, "السؤال غير موجود.", show_alert=True)
+                return
+            text = f"❓ {entry['question']}\n\n{entry['answer']}"
+            kb = faq_item_kb()
+            try:
+                if c.message:
+                    bot.edit_message_text(chat_id=chat_id, message_id=c.message.message_id, text=text, reply_markup=kb)
+                else:
+                    bot.send_message(chat_id, text, reply_markup=kb)
+            except Exception:
+                bot.send_message(chat_id, text, reply_markup=kb)
+            bot.answer_callback_query(c.id)
+            return
+
+        if data == CALLBACK_FAQ_ADMIN:
+            if not is_admin(uid):
+                bot.answer_callback_query(c.id, "غير مصرح.", show_alert=True)
+                return
+            kb = faq_admin_main_kb()
+            bot.send_message(chat_id, "⚙️ إدارة الأسئلة الشائعة:", reply_markup=kb)
+            bot.answer_callback_query(c.id)
+            return
+
+        if data == CALLBACK_FAQ_ADMIN_ADD:
+            if not is_admin(uid):
+                bot.answer_callback_query(c.id, "غير مصرح.", show_alert=True)
+                return
+            with _pending_faq_admin_lock:
+                _pending_faq_admin[chat_id] = {"action": "add", "step": "question"}
+            msg = bot.send_message(chat_id, "أرسل نص السؤال (أو اكتب 'إلغاء'):", reply_markup=cancel_inline_kb())
+            bot.register_next_step_handler(msg, faq_admin_add_step_question, chat_id, uid)
+            bot.answer_callback_query(c.id)
+            return
+
+        if data == CALLBACK_FAQ_ADMIN_EDIT:
+            if not is_admin(uid):
+                bot.answer_callback_query(c.id, "غير مصرح.", show_alert=True)
+                return
+            with db_connection() as conn_local:
+                entries = get_all_faq_entries(conn_local)
+            if not entries:
+                bot.send_message(chat_id, "لا توجد أسئلة شائعة للتعديل.", reply_markup=faq_admin_main_kb())
+                bot.answer_callback_query(c.id)
+                return
+            kb = faq_admin_select_kb(entries, "edit")
+            bot.send_message(chat_id, "اختر السؤال للتعديل:", reply_markup=kb)
+            bot.answer_callback_query(c.id)
+            return
+
+        if data == CALLBACK_FAQ_ADMIN_DELETE:
+            if not is_admin(uid):
+                bot.answer_callback_query(c.id, "غير مصرح.", show_alert=True)
+                return
+            with db_connection() as conn_local:
+                entries = get_all_faq_entries(conn_local)
+            if not entries:
+                bot.send_message(chat_id, "لا توجد أسئلة شائعة للحذف.", reply_markup=faq_admin_main_kb())
+                bot.answer_callback_query(c.id)
+                return
+            kb = faq_admin_select_kb(entries, "delete")
+            bot.send_message(chat_id, "اختر السؤال للحذف:", reply_markup=kb)
+            bot.answer_callback_query(c.id)
+            return
+
+        if data.startswith(CALLBACK_FAQ_ADMIN_EDIT_SELECT):
+            if not is_admin(uid):
+                bot.answer_callback_query(c.id, "غير مصرح.", show_alert=True)
+                return
+            faq_id = int(data.split(":", 1)[1])
+            with db_connection() as conn_local:
+                entry = get_faq_entry(conn_local, faq_id)
+            if not entry:
+                bot.answer_callback_query(c.id, "السؤال غير موجود.", show_alert=True)
+                return
+            with _pending_faq_admin_lock:
+                _pending_faq_admin[chat_id] = {
+                    "action": "edit",
+                    "step": "question",
+                    "faq_id": faq_id,
+                    "current_question": entry["question"],
+                    "current_answer": entry["answer"],
+                }
+            msg = bot.send_message(chat_id, "أرسل نص السؤال الجديد (أو اكتب 'إلغاء'):", reply_markup=cancel_inline_kb())
+            bot.register_next_step_handler(msg, faq_admin_edit_step_question, chat_id, uid)
+            bot.answer_callback_query(c.id)
+            return
+
+        if data.startswith(CALLBACK_FAQ_ADMIN_DELETE_SELECT):
+            if not is_admin(uid):
+                bot.answer_callback_query(c.id, "غير مصرح.", show_alert=True)
+                return
+            faq_id = int(data.split(":", 1)[1])
+            kb = faq_admin_delete_confirm_kb(faq_id)
+            bot.send_message(chat_id, f"هل أنت متأكد من حذف السؤال (ID:{faq_id})؟", reply_markup=kb)
+            bot.answer_callback_query(c.id)
+            return
+
+        if data.startswith(CALLBACK_FAQ_ADMIN_DELETE_CONFIRM):
+            if not is_admin(uid):
+                bot.answer_callback_query(c.id, "غير مصرح.", show_alert=True)
+                return
+            faq_id = int(data.split(":", 1)[1])
+            with db_connection() as conn_local:
+                deleted = delete_faq_entry(conn_local, faq_id)
+            if deleted:
+                bot.send_message(chat_id, f"✅ تم حذف السؤال (ID:{faq_id}).", reply_markup=faq_admin_main_kb())
+            else:
+                bot.send_message(chat_id, f"لم يتم العثور على السؤال (ID:{faq_id}).", reply_markup=faq_admin_main_kb())
             bot.answer_callback_query(c.id)
             return
 
@@ -3114,6 +3290,103 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
                 logger.info("Scheduled custom reminder %s at %s", reminder_id, reminder_dt)
         except Exception:
             logger.exception("Failed to schedule custom reminder")
+
+    def faq_admin_add_step_question(msg, chat_id, user_id):
+        text = (msg.text or "").strip()
+        if is_cancel_text(text):
+            with _pending_faq_admin_lock:
+                _pending_faq_admin.pop(chat_id, None)
+            bot.send_message(chat_id, "تم إلغاء إضافة السؤال.", reply_markup=main_menu_kb())
+            return
+        is_valid, error = validate_text_input(text, MAX_INPUT_LENGTH)
+        if not is_valid:
+            m = bot.send_message(chat_id, f"خطأ: {error}. أرسل السؤال مرة أخرى (أو 'إلغاء'):", reply_markup=cancel_inline_kb())
+            bot.register_next_step_handler(m, faq_admin_add_step_question, chat_id, user_id)
+            return
+        with _pending_faq_admin_lock:
+            _pending_faq_admin[chat_id] = {"action": "add", "step": "answer", "question": text}
+        m = bot.send_message(chat_id, "أرسل الإجابة (أو اكتب 'إلغاء'):", reply_markup=cancel_inline_kb())
+        bot.register_next_step_handler(m, faq_admin_add_step_answer, chat_id, user_id)
+
+    def faq_admin_add_step_answer(msg, chat_id, user_id):
+        text = (msg.text or "").strip()
+        if is_cancel_text(text):
+            with _pending_faq_admin_lock:
+                _pending_faq_admin.pop(chat_id, None)
+            bot.send_message(chat_id, "تم إلغاء إضافة السؤال.", reply_markup=main_menu_kb())
+            return
+        is_valid, error = validate_text_input(text, MAX_DESCRIPTION_LENGTH)
+        if not is_valid:
+            m = bot.send_message(chat_id, f"خطأ: {error}. أرسل الإجابة مرة أخرى (أو 'إلغاء'):", reply_markup=cancel_inline_kb())
+            bot.register_next_step_handler(m, faq_admin_add_step_answer, chat_id, user_id)
+            return
+        with _pending_faq_admin_lock:
+            pending = _pending_faq_admin.get(chat_id)
+            if not pending or pending.get("action") != "add":
+                pending = None
+            else:
+                question = pending.get("question")
+        if not pending:
+            bot.send_message(chat_id, "انتهت الجلسة.", reply_markup=main_menu_kb())
+            return
+        with db_connection() as conn_local:
+            faq_id = insert_faq_entry(conn_local, question, text)
+        with _pending_faq_admin_lock:
+            _pending_faq_admin.pop(chat_id, None)
+        bot.send_message(chat_id, f"✅ تم إضافة السؤال (ID:{faq_id}).", reply_markup=faq_admin_main_kb())
+
+    def faq_admin_edit_step_question(msg, chat_id, user_id):
+        text = (msg.text or "").strip()
+        if is_cancel_text(text):
+            with _pending_faq_admin_lock:
+                _pending_faq_admin.pop(chat_id, None)
+            bot.send_message(chat_id, "تم إلغاء تعديل السؤال.", reply_markup=main_menu_kb())
+            return
+        is_valid, error = validate_text_input(text, MAX_INPUT_LENGTH)
+        if not is_valid:
+            m = bot.send_message(chat_id, f"خطأ: {error}. أرسل السؤال مرة أخرى (أو 'إلغاء'):", reply_markup=cancel_inline_kb())
+            bot.register_next_step_handler(m, faq_admin_edit_step_question, chat_id, user_id)
+            return
+        with _pending_faq_admin_lock:
+            pending = _pending_faq_admin.get(chat_id)
+            if not pending or pending.get("action") != "edit":
+                bot.send_message(chat_id, "انتهت الجلسة.", reply_markup=main_menu_kb())
+                return
+            pending["question"] = text
+            pending["step"] = "answer"
+        m = bot.send_message(chat_id, "أرسل الإجابة الجديدة (أو اكتب 'إلغاء'):", reply_markup=cancel_inline_kb())
+        bot.register_next_step_handler(m, faq_admin_edit_step_answer, chat_id, user_id)
+
+    def faq_admin_edit_step_answer(msg, chat_id, user_id):
+        text = (msg.text or "").strip()
+        if is_cancel_text(text):
+            with _pending_faq_admin_lock:
+                _pending_faq_admin.pop(chat_id, None)
+            bot.send_message(chat_id, "تم إلغاء تعديل السؤال.", reply_markup=main_menu_kb())
+            return
+        is_valid, error = validate_text_input(text, MAX_DESCRIPTION_LENGTH)
+        if not is_valid:
+            m = bot.send_message(chat_id, f"خطأ: {error}. أرسل الإجابة مرة أخرى (أو 'إلغاء'):", reply_markup=cancel_inline_kb())
+            bot.register_next_step_handler(m, faq_admin_edit_step_answer, chat_id, user_id)
+            return
+        with _pending_faq_admin_lock:
+            pending = _pending_faq_admin.get(chat_id)
+            if not pending or pending.get("action") != "edit":
+                pending = None
+            else:
+                faq_id = pending.get("faq_id")
+                question = pending.get("question")
+        if not pending:
+            bot.send_message(chat_id, "انتهت الجلسة.", reply_markup=main_menu_kb())
+            return
+        with db_connection() as conn_local:
+            updated = update_faq_entry(conn_local, faq_id, question, text)
+        with _pending_faq_admin_lock:
+            _pending_faq_admin.pop(chat_id, None)
+        if updated:
+            bot.send_message(chat_id, f"✅ تم تحديث السؤال (ID:{faq_id}).", reply_markup=faq_admin_main_kb())
+        else:
+            bot.send_message(chat_id, f"لم يتم العثور على السؤال (ID:{faq_id}).", reply_markup=faq_admin_main_kb())
 
     
     def schedule_admin_add_step_time_start(msg, chat_id):

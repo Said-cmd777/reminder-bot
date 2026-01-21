@@ -33,6 +33,18 @@ CALLBACK_CUSTOM_REMINDER_DONE = "custom_reminder_done:"
 CALLBACK_CUSTOM_REMINDER_UNDONE = "custom_reminder_undone:"
 
 
+CALLBACK_FAQ_LIST = "faq_list"
+CALLBACK_FAQ_VIEW = "faq_view:"
+CALLBACK_FAQ_ADMIN = "faq_admin"
+CALLBACK_FAQ_ADMIN_ADD = "faq_admin_add"
+CALLBACK_FAQ_ADMIN_EDIT = "faq_admin_edit"
+CALLBACK_FAQ_ADMIN_DELETE = "faq_admin_delete"
+CALLBACK_FAQ_ADMIN_EDIT_SELECT = "faq_admin_edit_select:"
+CALLBACK_FAQ_ADMIN_DELETE_SELECT = "faq_admin_delete_select:"
+CALLBACK_FAQ_ADMIN_DELETE_CONFIRM = "faq_admin_delete_confirm:"
+CALLBACK_FAQ_BACK = "faq_back"
+
+
 CALLBACK_WEEKLY_SCHEDULE = "weekly_schedule"
 CALLBACK_WEEKLY_SCHEDULE_GROUP_01 = "weekly_schedule_group_01"
 CALLBACK_WEEKLY_SCHEDULE_GROUP_02 = "weekly_schedule_group_02"
@@ -83,7 +95,7 @@ CALLBACK_NOTIFICATION_ENABLE_ALL = "notification_enable_all"
 DEFAULT_REMINDERS = "3,2,1"
 MAX_INPUT_LENGTH = 2000
 MAX_DESCRIPTION_LENGTH = 5000
-MAIN_MENU_BUTTONS = ("Homeworks", "Weekly Schedule", "Update Info")
+MAIN_MENU_BUTTONS = ("Homeworks", "Weekly Schedule", "FAQ", "Update Info")
 REGISTRATION_GROUP_OPTIONS = ("Group 1", "Group 2", "Group 3", "Group 4")
 REGISTRATION_GROUP_NORMALIZATION = {
     option.casefold(): f"{index:02d}"
