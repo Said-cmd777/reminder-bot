@@ -32,6 +32,8 @@ from constants import (
 
 logger = logging.getLogger(__name__)
 
+MAIN_MENU_BUTTONS = ("Homeworks", "Weekly Schedule")
+
 
 def is_admin(user_id: int) -> bool:
     """Check if user is an admin."""
@@ -52,9 +54,14 @@ def format_homework_text(row: Dict[str, Any]) -> str:
 def main_menu_kb():
     """Create main menu keyboard."""
     kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    kb.row("Homeworks")
-    kb.row("Weekly Schedule")
+    for label in MAIN_MENU_BUTTONS:
+        kb.row(label)
     return kb
+
+
+def is_main_menu_button(text: Optional[str]) -> bool:
+    """Check if text matches a main menu button label."""
+    return (text or "").strip() in MAIN_MENU_BUTTONS
 
 
 def registration_kb():

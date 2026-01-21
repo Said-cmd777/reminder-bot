@@ -59,8 +59,6 @@ from constants import (
 
 logger = logging.getLogger(__name__)
 
-MAIN_MENU_BUTTONS = ("Homeworks", "Weekly Schedule")
-
 
 from bot_handlers.base import BotHandlers, StateManager, StateType
 from bot_handlers.helpers import (
@@ -68,7 +66,7 @@ from bot_handlers.helpers import (
     hw_item_kb, hw_main_kb, try_get_chat_variants,
     custom_reminder_main_kb, custom_reminder_item_kb,
     weekly_schedule_group_kb, weekly_schedule_time_kb,
-    notification_settings_kb
+    notification_settings_kb, is_main_menu_button
 )
 from bot_handlers.schedule_admin_helpers import (
     schedule_admin_groups_kb, schedule_admin_days_kb, schedule_admin_day_menu_kb,
@@ -2274,7 +2272,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
         text = (msg.text or "").strip()
         with _pending_registration_lock:
             pending = _pending_registration.get(chat_id)
-        if text in MAIN_MENU_BUTTONS:
+        if is_main_menu_button(text):
             msg_retry = bot.send_message(
                 chat_id,
                 "يرجى إدخال الاسم واللقب أولاً لإكمال التسجيل.",
@@ -2314,7 +2312,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
         text = (msg.text or "").strip()
         with _pending_registration_lock:
             pending = _pending_registration.get(chat_id)
-        if text in MAIN_MENU_BUTTONS:
+        if is_main_menu_button(text):
             msg_retry = bot.send_message(
                 chat_id,
                 "يرجى إدخال رقم المجموعة لإكمال التسجيل.",
