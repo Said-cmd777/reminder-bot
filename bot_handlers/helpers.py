@@ -8,6 +8,7 @@ from telebot import types
 
 from config import ADMIN_IDS
 from db_utils import safe_get
+from utils import CANCEL_TEXT
 from constants import (
     CALLBACK_HW_DONE, CALLBACK_HW_UNDONE, CALLBACK_HW_PDF, CALLBACK_HW_EDIT_ID,
     CALLBACK_HW_DELETE_ID, CALLBACK_HW_BACK, CALLBACK_HW_LIST,
@@ -67,7 +68,7 @@ def is_main_menu_button(text: Optional[str]) -> bool:
 def registration_kb():
     """Create registration keyboard without main menu buttons."""
     kb = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
-    kb.row("إلغاء")
+    kb.row(CANCEL_TEXT)
     return kb
 
 

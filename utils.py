@@ -2,6 +2,9 @@
 from datetime import datetime
 import logging
 
+CANCEL_TEXT = "إلغاء"
+CANCEL_TEXT_ALIASES = (CANCEL_TEXT, "الغاء", "cancel")
+
 def init_logging(log_file):
     logging.basicConfig(
         level=logging.INFO,
@@ -20,4 +23,4 @@ def parse_dt(dt_str):
 def is_cancel_text(text):
     if not text:
         return False
-    return text.strip().lower() in ("إلغاء", "الغاء", "cancel")
+    return text.strip().lower() in CANCEL_TEXT_ALIASES
