@@ -44,8 +44,15 @@ def get_connection_info():
             "url": DATABASE_URL
         }
     else:
-        from config import DB_PATH
+        # Try to import DB_PATH from config, but use default if config fails
+        try:
+            from config import DB_PATH
+            db_path = DB_PATH
+        except Exception:
+            # Fallback to default if config import fails
+            db_path = os.getenv("DB_PATH", "reminders.db")
+        
         return {
             "type": "sqlite",
-            "path": DB_PATH
+            "path": db_path
         }
