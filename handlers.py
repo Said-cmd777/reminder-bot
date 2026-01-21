@@ -15,7 +15,7 @@ from db import (
     ensure_tables,
     insert_homework, get_homework, get_all_homeworks, delete_homework,
     mark_done, mark_undone, is_homework_done_for_user, update_field, register_user, update_user_display_name,
-    is_user_registered, is_user_registration_complete, get_all_registered_user_ids,
+    is_user_registered, is_user_registration_complete, get_all_registered_user_ids, get_user_display_info,
     insert_custom_reminder, get_custom_reminder, get_all_custom_reminders_for_user, delete_custom_reminder,
     mark_custom_reminder_done, mark_custom_reminder_undone, is_custom_reminder_done_for_user,
     get_notification_setting, set_notification_setting, enable_all_notifications, disable_all_notifications,
@@ -398,6 +398,32 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
             bot.send_message(chat_id, "حدث خطأ أثناء طلب بيانات التسجيل. حاول مرة أخرى بـ /start.")
         return False
 
+    def start_update_registration(chat_id: int, user_id: int):
+        """Start the update flow to refresh user's display name and group."""
+        with db_connection() as conn_local:
+            current = get_user_display_info(conn_local, user_id)
+        if current is None:
+            bot.send_message(chat_id, "تعذر تحميل بياناتك الحالية، سيتم تحديث المعلومات من جديد.", reply_markup=registration_kb())
+            current_data = {"display_name": None, "group_number": None}
+        else:
+            current_data = {
+                "display_name": safe_get(current, "display_name"),
+                "group_number": safe_get(current, "group_number"),
+            }
+        with _pending_registration_lock:
+            _pending_registration[chat_id] = {
+                "step": "name",
+                "mode": "update",
+                "previous_display_name": current_data["display_name"],
+                "previous_group_number": current_data["group_number"],
+            }
+        msg = bot.send_message(
+            chat_id,
+            "📝 لتحديث بياناتك:\n\nيرجى إرسال الاسم واللقب (مثال: خالد السعيد) ثم اختيار المجموعة من الخيارات المتاحة.\n\nأرسل الاسم الآن:",
+            reply_markup=registration_kb()
+        )
+        bot.register_next_step_handler(msg, handle_name_input)
+
     
     @bot.message_handler(commands=["start"])
     def cmd_start(m):
@@ -555,6 +581,16 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
         kb = weekly_schedule_group_kb()
         bot.send_message(m.chat.id, "Select your Group", reply_markup=kb)
         logger.info(f"Opened Weekly Schedule menu for user {m.from_user.id} in chat {m.chat.id}")
+
+    @bot.message_handler(func=lambda msg: msg.text == "Update Info")
+    def update_user_info(m):
+        with db_connection() as conn_local:
+            registration_complete = is_user_registration_complete(conn_local, m.from_user.id)
+        if not registration_complete:
+            ensure_registration(m.chat.id, m.from_user.id)
+            return
+        start_update_registration(m.chat.id, m.from_user.id)
+        logger.info(f"Started update info flow for user {m.from_user.id} in chat {m.chat.id}")
 
     
     
@@ -2303,7 +2339,13 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
         user_id = msg.from_user.id
 
         with _pending_registration_lock:
-            _pending_registration[chat_id] = {"step": "group", "display_name": display_name}
+            _pending_registration[chat_id] = {
+                "step": "group",
+                "display_name": display_name,
+                "mode": pending.get("mode") or "register",
+                "previous_display_name": pending.get("previous_display_name"),
+                "previous_group_number": pending.get("previous_group_number"),
+            }
         msg_group = bot.send_message(
             chat_id,
             "✅ تم حفظ الاسم.\n\nالآن اختر مجموعتك من الخيارات المتاحة:",
@@ -2348,6 +2390,9 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
         display_name = pending.get("display_name")
         group_number = normalized_group
         user_id = msg.from_user.id
+        is_update = pending.get("mode") == "update"
+        previous_display_name = pending.get("previous_display_name")
+        previous_group_number = pending.get("previous_group_number")
 
         with db_connection() as conn_local:
             update_user_display_name(conn_local, user_id, display_name, group_number=group_number)
@@ -2361,12 +2406,24 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
         if ADMIN_IDS:
             safe_display_name = html.escape(display_name or "")
             safe_group_number = html.escape(group_number or "")
-            admin_message = (
-                "🆕 تسجيل مستخدم جديد\n"
-                f"الاسم: {safe_display_name}\n"
-                f"المجموعة: {safe_group_number}\n"
-                f"user_id: {user_id}"
-            )
+            if is_update:
+                safe_prev_name = html.escape(previous_display_name or "")
+                safe_prev_group = html.escape(previous_group_number or "")
+                admin_message = (
+                    "🔄 تحديث بيانات مستخدم\n"
+                    f"user_id: {user_id}\n"
+                    f"الاسم السابق: {safe_prev_name}\n"
+                    f"المجموعة السابقة: {safe_prev_group}\n"
+                    f"الاسم الجديد: {safe_display_name}\n"
+                    f"المجموعة الجديدة: {safe_group_number}"
+                )
+            else:
+                admin_message = (
+                    "🆕 تسجيل مستخدم جديد\n"
+                    f"الاسم: {safe_display_name}\n"
+                    f"المجموعة: {safe_group_number}\n"
+                    f"user_id: {user_id}"
+                )
             for admin_id in ADMIN_IDS:
                 try:
                     bot.send_message(admin_id, admin_message, parse_mode="HTML")

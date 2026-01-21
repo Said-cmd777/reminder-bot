@@ -407,6 +407,21 @@ def update_user_display_name(conn: sqlite3.Connection, user_id: int, display_nam
         except Exception:
             raise
 
+
+def get_user_display_info(conn: sqlite3.Connection, user_id: int) -> Optional[sqlite3.Row]:
+    """Get display name and group number for a user."""
+    ensure_tables(conn)
+    previous_factory = conn.row_factory
+    conn.row_factory = sqlite3.Row
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT display_name, group_number FROM users WHERE user_id = ? LIMIT 1", (user_id,))
+        return cur.fetchone()
+    except sqlite3.OperationalError:
+        return None
+    finally:
+        conn.row_factory = previous_factory
+
 def is_user_registered(conn: sqlite3.Connection, user_id: int) -> bool:
     ensure_tables(conn)
     cur = conn.cursor()
