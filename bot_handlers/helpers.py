@@ -18,9 +18,11 @@ from constants import (
     CALLBACK_CUSTOM_REMINDER_DELETE, CALLBACK_CUSTOM_REMINDER_CONFIRM_DELETE,
     CALLBACK_CUSTOM_REMINDER_DONE, CALLBACK_CUSTOM_REMINDER_UNDONE,
     CALLBACK_FAQ_LIST, CALLBACK_FAQ_VIEW, CALLBACK_FAQ_ADMIN,
-    CALLBACK_FAQ_ADMIN_ADD, CALLBACK_FAQ_ADMIN_EDIT, CALLBACK_FAQ_ADMIN_DELETE,
-    CALLBACK_FAQ_ADMIN_EDIT_SELECT, CALLBACK_FAQ_ADMIN_DELETE_SELECT,
-    CALLBACK_FAQ_ADMIN_DELETE_CONFIRM,
+    CALLBACK_FAQ_ADMIN_ADD, CALLBACK_FAQ_ADMIN_EDIT, CALLBACK_FAQ_ADMIN_EDIT_ANSWER,
+    CALLBACK_FAQ_ADMIN_DELETE, CALLBACK_FAQ_ADMIN_DELETE_ANSWER,
+    CALLBACK_FAQ_ADMIN_EDIT_SELECT, CALLBACK_FAQ_ADMIN_EDIT_ANSWER_SELECT,
+    CALLBACK_FAQ_ADMIN_DELETE_SELECT, CALLBACK_FAQ_ADMIN_DELETE_CONFIRM,
+    CALLBACK_FAQ_ADMIN_DELETE_ANSWER_SELECT, CALLBACK_FAQ_ADMIN_DELETE_ANSWER_CONFIRM,
     CALLBACK_FAQ_BACK,
     CALLBACK_WEEKLY_SCHEDULE, CALLBACK_WEEKLY_SCHEDULE_GROUP_01, CALLBACK_WEEKLY_SCHEDULE_GROUP_02,
     CALLBACK_WEEKLY_SCHEDULE_GROUP_03, CALLBACK_WEEKLY_SCHEDULE_GROUP_04,
@@ -170,7 +172,9 @@ def faq_admin_main_kb():
     kb = types.InlineKeyboardMarkup()
     kb.add(types.InlineKeyboardButton("➕ إضافة سؤال", callback_data=CALLBACK_FAQ_ADMIN_ADD))
     kb.add(types.InlineKeyboardButton("✏️ تعديل سؤال", callback_data=CALLBACK_FAQ_ADMIN_EDIT))
+    kb.add(types.InlineKeyboardButton("✏️ تعديل إجابة", callback_data=CALLBACK_FAQ_ADMIN_EDIT_ANSWER))
     kb.add(types.InlineKeyboardButton("🗑️ حذف سؤال", callback_data=CALLBACK_FAQ_ADMIN_DELETE))
+    kb.add(types.InlineKeyboardButton("🗑️ حذف إجابة", callback_data=CALLBACK_FAQ_ADMIN_DELETE_ANSWER))
     kb.add(types.InlineKeyboardButton("↩️ رجوع", callback_data=CALLBACK_FAQ_LIST))
     return kb
 
@@ -182,6 +186,10 @@ def faq_admin_select_kb(entries, action: str):
         label = safe_get(entry, "question", "Question")
         if action == "edit":
             callback = f"{CALLBACK_FAQ_ADMIN_EDIT_SELECT}{entry['id']}"
+        elif action == "edit_answer":
+            callback = f"{CALLBACK_FAQ_ADMIN_EDIT_ANSWER_SELECT}{entry['id']}"
+        elif action == "delete_answer":
+            callback = f"{CALLBACK_FAQ_ADMIN_DELETE_ANSWER_SELECT}{entry['id']}"
         else:
             callback = f"{CALLBACK_FAQ_ADMIN_DELETE_SELECT}{entry['id']}"
         kb.add(types.InlineKeyboardButton(label, callback_data=callback))
@@ -193,6 +201,14 @@ def faq_admin_delete_confirm_kb(faq_id: int):
     """Create FAQ delete confirm keyboard."""
     kb = types.InlineKeyboardMarkup()
     kb.add(types.InlineKeyboardButton("نعم احذف", callback_data=f"{CALLBACK_FAQ_ADMIN_DELETE_CONFIRM}{faq_id}"))
+    kb.add(types.InlineKeyboardButton("إلغاء", callback_data=CALLBACK_FAQ_ADMIN))
+    return kb
+
+
+def faq_admin_delete_answer_confirm_kb(faq_id: int):
+    """Create FAQ delete answer confirm keyboard (clears answer to a placeholder)."""
+    kb = types.InlineKeyboardMarkup()
+    kb.add(types.InlineKeyboardButton("نعم احذف", callback_data=f"{CALLBACK_FAQ_ADMIN_DELETE_ANSWER_CONFIRM}{faq_id}"))
     kb.add(types.InlineKeyboardButton("إلغاء", callback_data=CALLBACK_FAQ_ADMIN))
     return kb
 
