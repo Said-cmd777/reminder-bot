@@ -86,10 +86,8 @@ MAX_DESCRIPTION_LENGTH = 5000
 MAIN_MENU_BUTTONS = ("Homeworks", "Weekly Schedule")
 REGISTRATION_GROUP_OPTIONS = ("Group 1", "Group 2", "Group 3", "Group 4")
 REGISTRATION_GROUP_NORMALIZATION = {
-    "group 1": "01",
-    "group 2": "02",
-    "group 3": "03",
-    "group 4": "04",
+    option.casefold(): f"{index:02d}"
+    for index, option in enumerate(REGISTRATION_GROUP_OPTIONS, start=1)
 }
 
 

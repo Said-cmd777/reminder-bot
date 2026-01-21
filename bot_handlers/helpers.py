@@ -69,8 +69,8 @@ def registration_kb(include_groups: bool = False):
     """Create registration keyboard without main menu buttons."""
     kb = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
     if include_groups:
-        kb.row(REGISTRATION_GROUP_OPTIONS[0], REGISTRATION_GROUP_OPTIONS[1])
-        kb.row(REGISTRATION_GROUP_OPTIONS[2], REGISTRATION_GROUP_OPTIONS[3])
+        for index in range(0, len(REGISTRATION_GROUP_OPTIONS), 2):
+            kb.row(*REGISTRATION_GROUP_OPTIONS[index:index + 2])
     kb.row(CANCEL_TEXT)
     return kb
 

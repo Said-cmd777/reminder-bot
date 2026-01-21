@@ -2334,7 +2334,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
             bot.register_next_step_handler(msg_retry, handle_group_input)
             return
 
-        normalized_group = REGISTRATION_GROUP_NORMALIZATION.get(text.lower())
+        normalized_group = REGISTRATION_GROUP_NORMALIZATION.get(text.casefold())
         if not normalized_group:
             options_text = ", ".join(REGISTRATION_GROUP_OPTIONS)
             msg_retry = bot.send_message(
