@@ -4,6 +4,8 @@ import sys
 import signal
 import traceback
 import os
+import time
+from datetime import datetime, timezone
 import telebot
 
 from config import BOT_TOKEN, DB_PATH, BACKUP_DIR, LOG_FILE
@@ -12,6 +14,9 @@ from db import get_conn, ensure_tables
 from scheduler import SchedulerManager
 from auto_init_schedules import auto_init_schedules
 
+logger = init_logging(LOG_FILE)
+logger.info("Starting bot.py")
+
 # ============================================
 # Keep-Alive for Replit
 # ============================================
@@ -19,10 +24,38 @@ from flask import Flask
 from threading import Thread
 
 app = Flask('')
+_KEEP_ALIVE_START = time.time()
 
 @app.route('/')
 def home():
     return "🤖 Homework Bot is alive!"
+
+@app.route('/health')
+def health():
+    global conn
+    global sch_mgr
+    uptime_seconds = int(time.time() - _KEEP_ALIVE_START)
+    scheduler_running = False
+    scheduler = sch_mgr.scheduler if sch_mgr else None
+    if scheduler:
+        scheduler_running = bool(getattr(scheduler, "running", False))
+    db_connected = False
+    if conn:
+        try:
+            conn.execute("SELECT 1").fetchone()
+            db_connected = True
+        except Exception:
+            logger.warning("Health check: database connection failed", exc_info=True)
+            db_connected = False
+    health_status = "ok" if scheduler_running and db_connected else "degraded"
+    status_code = 200 if health_status == "ok" else 503
+    return {
+        "status": health_status,
+        "uptime_seconds": uptime_seconds,
+        "scheduler_running": scheduler_running,
+        "db_connected": db_connected,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }, status_code
 
 def run_flask():
     try:
@@ -51,9 +84,6 @@ import sys
 sys.modules["handlers"] = handlers_module
 register_handlers = handlers_module.register_handlers
 
-
-logger = init_logging(LOG_FILE)
-logger.info("Starting bot.py")
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
