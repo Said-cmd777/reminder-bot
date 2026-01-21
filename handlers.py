@@ -2268,17 +2268,21 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
 
     
     def _prompt_registration_input(chat_id: int, message: str, handler):
-        msg_retry = bot.send_message(chat_id, message, reply_markup=registration_kb())
-        bot.register_next_step_handler(msg_retry, handler)
+        try:
+            msg_retry = bot.send_message(chat_id, message, reply_markup=registration_kb())
+            bot.register_next_step_handler(msg_retry, handler)
+        except Exception:
+            logger.exception("Failed to prompt for registration input")
+            bot.send_message(chat_id, "حدث خطأ أثناء طلب بيانات التسجيل. حاول مرة أخرى بـ /start.")
 
     def handle_name_input(msg):
         chat_id = msg.chat.id
         text = (msg.text or "").strip()
-        with _pending_registration_lock:
-            pending = _pending_registration.get(chat_id)
         if is_main_menu_button(text):
             _prompt_registration_input(chat_id, "يرجى إدخال الاسم واللقب أولاً لإكمال التسجيل.", handle_name_input)
             return
+        with _pending_registration_lock:
+            pending = _pending_registration.get(chat_id)
         if is_cancel_text(text) or not pending or not isinstance(pending, dict):
             with _pending_registration_lock:
                 _pending_registration.pop(chat_id, None)
@@ -2309,11 +2313,11 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
     def handle_group_input(msg):
         chat_id = msg.chat.id
         text = (msg.text or "").strip()
-        with _pending_registration_lock:
-            pending = _pending_registration.get(chat_id)
         if is_main_menu_button(text):
             _prompt_registration_input(chat_id, "يرجى إدخال رقم المجموعة لإكمال التسجيل.", handle_group_input)
             return
+        with _pending_registration_lock:
+            pending = _pending_registration.get(chat_id)
         if is_cancel_text(text) or not pending or not isinstance(pending, dict):
             with _pending_registration_lock:
                 _pending_registration.pop(chat_id, None)
