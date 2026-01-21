@@ -84,6 +84,13 @@ DEFAULT_REMINDERS = "3,2,1"
 MAX_INPUT_LENGTH = 2000
 MAX_DESCRIPTION_LENGTH = 5000
 MAIN_MENU_BUTTONS = ("Homeworks", "Weekly Schedule")
+REGISTRATION_GROUP_OPTIONS = ("Group 1", "Group 2", "Group 3", "Group 4")
+REGISTRATION_GROUP_NORMALIZATION = {
+    "group 1": "01",
+    "group 2": "02",
+    "group 3": "03",
+    "group 4": "04",
+}
 
 
 PENDING_STEP_TARGET_TYPE = "target_type"

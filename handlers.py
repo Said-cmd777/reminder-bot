@@ -54,7 +54,8 @@ from constants import (
     CALLBACK_NOTIFICATION_SETTINGS, CALLBACK_NOTIFICATION_DISABLE_HOMEWORK, CALLBACK_NOTIFICATION_ENABLE_HOMEWORK,
     CALLBACK_NOTIFICATION_DISABLE_MANUAL, CALLBACK_NOTIFICATION_ENABLE_MANUAL,
     CALLBACK_NOTIFICATION_DISABLE_CUSTOM, CALLBACK_NOTIFICATION_ENABLE_CUSTOM,
-    CALLBACK_NOTIFICATION_DISABLE_ALL, CALLBACK_NOTIFICATION_ENABLE_ALL
+    CALLBACK_NOTIFICATION_DISABLE_ALL, CALLBACK_NOTIFICATION_ENABLE_ALL,
+    REGISTRATION_GROUP_NORMALIZATION, REGISTRATION_GROUP_OPTIONS
 )
 
 logger = logging.getLogger(__name__)
@@ -2333,15 +2334,14 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
             bot.register_next_step_handler(msg_retry, handle_group_input)
             return
 
-        group_map = {
-            "group 1": "01",
-            "group 2": "02",
-            "group 3": "03",
-            "group 4": "04",
-        }
-        normalized_group = group_map.get(text.lower())
+        normalized_group = REGISTRATION_GROUP_NORMALIZATION.get(text.lower())
         if not normalized_group:
-            msg_retry = bot.send_message(chat_id, "يرجى اختيار المجموعة فقط من الخيارات: Group 1, Group 2, Group 3, Group 4.", reply_markup=registration_kb(include_groups=True))
+            options_text = ", ".join(REGISTRATION_GROUP_OPTIONS)
+            msg_retry = bot.send_message(
+                chat_id,
+                f"يرجى اختيار المجموعة فقط من الخيارات: {options_text}.",
+                reply_markup=registration_kb(include_groups=True)
+            )
             bot.register_next_step_handler(msg_retry, handle_group_input)
             return
 

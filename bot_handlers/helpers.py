@@ -29,7 +29,8 @@ from constants import (
     CALLBACK_NOTIFICATION_DISABLE_MANUAL, CALLBACK_NOTIFICATION_ENABLE_MANUAL,
     CALLBACK_NOTIFICATION_DISABLE_CUSTOM, CALLBACK_NOTIFICATION_ENABLE_CUSTOM,
     CALLBACK_NOTIFICATION_DISABLE_ALL, CALLBACK_NOTIFICATION_ENABLE_ALL,
-    MAIN_MENU_BUTTONS
+    MAIN_MENU_BUTTONS,
+    REGISTRATION_GROUP_OPTIONS
 )
 
 logger = logging.getLogger(__name__)
@@ -68,8 +69,8 @@ def registration_kb(include_groups: bool = False):
     """Create registration keyboard without main menu buttons."""
     kb = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
     if include_groups:
-        kb.row("Group 1", "Group 2")
-        kb.row("Group 3", "Group 4")
+        kb.row(REGISTRATION_GROUP_OPTIONS[0], REGISTRATION_GROUP_OPTIONS[1])
+        kb.row(REGISTRATION_GROUP_OPTIONS[2], REGISTRATION_GROUP_OPTIONS[3])
     kb.row(CANCEL_TEXT)
     return kb
 
