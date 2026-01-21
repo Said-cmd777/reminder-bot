@@ -38,11 +38,18 @@ CALLBACK_FAQ_VIEW = "faq_view:"
 CALLBACK_FAQ_ADMIN = "faq_admin"
 CALLBACK_FAQ_ADMIN_ADD = "faq_admin_add"
 CALLBACK_FAQ_ADMIN_EDIT = "faq_admin_edit"
+CALLBACK_FAQ_ADMIN_EDIT_ANSWER = "faq_admin_edit_answer"
 CALLBACK_FAQ_ADMIN_DELETE = "faq_admin_delete"
+CALLBACK_FAQ_ADMIN_DELETE_ANSWER = "faq_admin_delete_answer"
 CALLBACK_FAQ_ADMIN_EDIT_SELECT = "faq_admin_edit_select:"
+CALLBACK_FAQ_ADMIN_EDIT_ANSWER_SELECT = "faq_admin_edit_answer_select:"
 CALLBACK_FAQ_ADMIN_DELETE_SELECT = "faq_admin_delete_select:"
 CALLBACK_FAQ_ADMIN_DELETE_CONFIRM = "faq_admin_delete_confirm:"
+CALLBACK_FAQ_ADMIN_DELETE_ANSWER_SELECT = "faq_admin_delete_answer_select:"
+CALLBACK_FAQ_ADMIN_DELETE_ANSWER_CONFIRM = "faq_admin_delete_answer_confirm:"
 CALLBACK_FAQ_BACK = "faq_back"
+
+FAQ_ANSWER_PLACEHOLDER = "-"  # Placeholder stored when an FAQ answer is cleared.
 
 
 CALLBACK_WEEKLY_SCHEDULE = "weekly_schedule"
