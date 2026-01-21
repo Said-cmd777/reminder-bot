@@ -62,7 +62,9 @@ def ensure_tables(conn: Optional[sqlite3.Connection] = None):
       username TEXT,
       first_name TEXT,
       last_name TEXT,
-      registered_at TEXT
+      registered_at TEXT,
+      display_name TEXT,
+      group_number TEXT
     );
     """)
     
@@ -266,7 +268,9 @@ def register_user(conn: sqlite3.Connection, user_id: int, username: Optional[str
         "first_name": "TEXT",
         "last_name": "TEXT",
         "registered_at": "TEXT",
-        "started_at": "TEXT"
+        "started_at": "TEXT",
+        "display_name": "TEXT",
+        "group_number": "TEXT"
     }
     for col, col_type in expected.items():
         if col not in existing_cols:
@@ -309,7 +313,7 @@ def register_user(conn: sqlite3.Connection, user_id: int, username: Optional[str
         except Exception:
             raise
 
-def update_user_display_name(conn: sqlite3.Connection, user_id: int, display_name: str):
+def update_user_display_name(conn: sqlite3.Connection, user_id: int, display_name: str, group_number: Optional[str] = None):
     """
     Ensure 'display_name' column exists, then update the user's display name.
     Flexible parsing: accepts separators '_', ' ', '-', ','; splits on first occurrence.
@@ -329,6 +333,12 @@ def update_user_display_name(conn: sqlite3.Connection, user_id: int, display_nam
     if "display_name" not in cols:
         try:
             cur.execute("ALTER TABLE users ADD COLUMN display_name TEXT")
+            conn.commit()
+        except Exception:
+            pass
+    if "group_number" not in cols:
+        try:
+            cur.execute("ALTER TABLE users ADD COLUMN group_number TEXT")
             conn.commit()
         except Exception:
             pass
@@ -354,25 +364,45 @@ def update_user_display_name(conn: sqlite3.Connection, user_id: int, display_nam
 
     
     try:
-        cur.execute("""
-            UPDATE users
-               SET display_name = ?, first_name = COALESCE(?, first_name), last_name = COALESCE(?, last_name)
-             WHERE user_id = ?
-        """, (display_name, fname, lname, user_id))
+        if group_number is not None:
+            cur.execute("""
+                UPDATE users
+                   SET display_name = ?, first_name = COALESCE(?, first_name), last_name = COALESCE(?, last_name),
+                       group_number = ?
+                 WHERE user_id = ?
+            """, (display_name, fname, lname, group_number, user_id))
+        else:
+            cur.execute("""
+                UPDATE users
+                   SET display_name = ?, first_name = COALESCE(?, first_name), last_name = COALESCE(?, last_name)
+                 WHERE user_id = ?
+            """, (display_name, fname, lname, user_id))
         if cur.rowcount == 0:
             
-            cur.execute("""
-                INSERT INTO users (user_id, username, first_name, last_name, registered_at, display_name)
-                VALUES (?, NULL, ?, ?, datetime('now'), ?)
-            """, (user_id, fname, lname, display_name))
+            if group_number is not None:
+                cur.execute("""
+                    INSERT INTO users (user_id, username, first_name, last_name, registered_at, display_name, group_number)
+                    VALUES (?, NULL, ?, ?, datetime('now'), ?, ?)
+                """, (user_id, fname, lname, display_name, group_number))
+            else:
+                cur.execute("""
+                    INSERT INTO users (user_id, username, first_name, last_name, registered_at, display_name)
+                    VALUES (?, NULL, ?, ?, datetime('now'), ?)
+                """, (user_id, fname, lname, display_name))
         conn.commit()
     except Exception:
         
         try:
-            cur.execute("""
-                INSERT OR REPLACE INTO users (user_id, username, first_name, last_name, registered_at, display_name)
-                VALUES (?, NULL, ?, ?, datetime('now'), ?)
-            """, (user_id, fname, lname, display_name))
+            if group_number is not None:
+                cur.execute("""
+                    INSERT OR REPLACE INTO users (user_id, username, first_name, last_name, registered_at, display_name, group_number)
+                    VALUES (?, NULL, ?, ?, datetime('now'), ?, ?)
+                """, (user_id, fname, lname, display_name, group_number))
+            else:
+                cur.execute("""
+                    INSERT OR REPLACE INTO users (user_id, username, first_name, last_name, registered_at, display_name)
+                    VALUES (?, NULL, ?, ?, datetime('now'), ?)
+                """, (user_id, fname, lname, display_name))
             conn.commit()
         except Exception:
             raise
@@ -382,6 +412,28 @@ def is_user_registered(conn: sqlite3.Connection, user_id: int) -> bool:
     cur = conn.cursor()
     cur.execute("SELECT 1 FROM users WHERE user_id = ? LIMIT 1", (user_id,))
     return cur.fetchone() is not None
+
+def is_user_registration_complete(conn: sqlite3.Connection, user_id: int) -> bool:
+    """Check if user has completed required registration fields."""
+    ensure_tables(conn)
+    cur = conn.cursor()
+    try:
+        cur.execute("PRAGMA table_info(users);")
+        cols = [r[1] for r in cur.fetchall()]
+    except Exception:
+        cols = []
+    if "display_name" not in cols or "group_number" not in cols:
+        return False
+    try:
+        cur.execute("SELECT display_name, group_number FROM users WHERE user_id = ? LIMIT 1", (user_id,))
+        row = cur.fetchone()
+    except Exception:
+        return False
+    if not row:
+        return False
+    display_name = row[0]
+    group_number = row[1]
+    return len(str(display_name or "").strip()) > 0 and len(str(group_number or "").strip()) > 0
 
 def get_all_registered_user_ids(conn: sqlite3.Connection) -> List[int]:
     ensure_tables(conn)

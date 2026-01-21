@@ -1,5 +1,6 @@
 
 """Telegram bot handlers for homework reminder system."""
+import html
 import logging
 import threading
 from datetime import datetime
@@ -14,7 +15,7 @@ from db import (
     ensure_tables,
     insert_homework, get_homework, get_all_homeworks, delete_homework,
     mark_done, mark_undone, is_homework_done_for_user, update_field, register_user, update_user_display_name,
-    is_user_registered, get_all_registered_user_ids,
+    is_user_registered, is_user_registration_complete, get_all_registered_user_ids,
     insert_custom_reminder, get_custom_reminder, get_all_custom_reminders_for_user, delete_custom_reminder,
     mark_custom_reminder_done, mark_custom_reminder_undone, is_custom_reminder_done_for_user,
     get_notification_setting, set_notification_setting, enable_all_notifications, disable_all_notifications,
@@ -265,10 +266,10 @@ def _job_send_media_to_chat(chat_id: int, text: str, media_type: str, media_file
 
 _pending_add = {}
 _pending_manual = {}
-_pending_nickname = {}
+_pending_registration = {}
 _pending_schedule_admin = {}  
 _pending_lock = threading.Lock()
-_pending_nickname_lock = threading.Lock()
+_pending_registration_lock = threading.Lock()
 _pending_schedule_admin_lock = threading.Lock()
 
 
@@ -339,8 +340,8 @@ def cancel_operation(chat_id: int, message_id: Optional[int] = None):
     """Cancel any pending operations and clear state."""
     cancel_pending_add(chat_id)
     cancel_pending_manual(chat_id)
-    with _pending_nickname_lock:
-        _pending_nickname.pop(chat_id, None)
+    with _pending_registration_lock:
+        _pending_registration.pop(chat_id, None)
     
     with _pending_schedule_admin_lock:
         _pending_schedule_admin.pop(chat_id, None)
@@ -375,6 +376,26 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
     
     from bot_handlers.base import RateLimiter
     rate_limiter = RateLimiter(max_calls=5, period=60)
+
+    def ensure_registration(chat_id: int, user_id: int) -> bool:
+        with db_connection() as conn_local:
+            if is_user_registration_complete(conn_local, user_id):
+                return True
+        with _pending_registration_lock:
+            if chat_id in _pending_registration:
+                return False
+            _pending_registration[chat_id] = {"step": "name"}
+        try:
+            msg = bot.send_message(
+                chat_id,
+                "📝 لإكمال التسجيل:\n\nيرجى إرسال الاسم واللقب (مثال: خالد السعيد) ثم المجموعة (مثال: 01 أو 02 أو 03 أو 04).\n\nأرسل الاسم الآن:",
+                reply_markup=cancel_inline_kb()
+            )
+            bot.register_next_step_handler(msg, handle_name_input)
+        except Exception:
+            logger.exception("Failed to request registration details")
+            bot.send_message(chat_id, "حدث خطأ أثناء طلب بيانات التسجيل. حاول مرة أخرى بـ /start.")
+        return False
 
     
     @bot.message_handler(commands=["start"])
@@ -471,7 +492,7 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 ⚠️ **ملاحظة مهمة:**
-لإكمال التسجيل، يرجى إدخال اسمك للعرض (اللقب_الاسم) كما سيُطلب منك أدناه.
+لإكمال التسجيل، يرجى إدخال الاسم واللقب ثم رقم المجموعة كما سيُطلب منك أدناه.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"""
             
@@ -487,32 +508,13 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
                     logger.exception("Failed to send welcome message")
 
             
-            try:
-                with _pending_nickname_lock:
-                    _pending_nickname[m.chat.id] = True
-                msg = bot.send_message(
-                    m.chat.id,
-                    "📝 **خطوة التسجيل الأخيرة:**\n\nرجاءً أدخل **اللقب_الاسم** أو أي صيغة مفصولة بـ `_` أو مسافة أو `-` أو `,`\n\nمثال: `خالد_السعيد` أو `خالد السعيد` أو `Khaled_Said` أو `Khaled Said`\n\nأو اكتب 'إلغاء' لتخطي هذه الخطوة.",
-                    parse_mode='Markdown',
-                    reply_markup=cancel_inline_kb()
-                )
-                bot.register_next_step_handler(msg, handle_nickname)
-            except Exception:
-                try:
-                    
-                    msg = bot.send_message(
-                        m.chat.id,
-                        "📝 خطوة التسجيل الأخيرة:\n\nرجاءً أدخل اللقب_الاسم أو أي صيغة مفصولة بـ _ أو مسافة أو - أو ,\n\nمثال: خالد_السعيد أو خالد السعيد أو Khaled_Said أو Khaled Said\n\nأو اكتب 'إلغاء' لتخطي هذه الخطوة.",
-                        reply_markup=cancel_inline_kb()
-                    )
-                    bot.register_next_step_handler(msg, handle_nickname)
-                except Exception:
-                    logger.exception("Failed to request nickname")
-                    bot.send_message(m.chat.id, "حدث خطأ أثناء طلب الاسم. يمكنك استخدام البوت الآن.", reply_markup=main_menu_kb())
+            ensure_registration(m.chat.id, m.from_user.id)
 
     
     @bot.message_handler(commands=['chatid'])
     def cmd_chatid(m):
+        if not ensure_registration(m.chat.id, m.from_user.id):
+            return
         try:
             bot.send_message(m.chat.id, f"هذا chat.id لهذه المحادثة: {m.chat.id}")
         except Exception:
@@ -521,6 +523,8 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
     
     @bot.message_handler(commands=['gettopic'])
     def cmd_gettopic(m):
+        if not ensure_registration(m.chat.id, m.from_user.id):
+            return
         try:
             thread_id = getattr(m, "message_thread_id", None)
             if thread_id is None and getattr(m, "reply_to_message", None):
@@ -533,6 +537,8 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
     
     @bot.message_handler(func=lambda msg: msg.text == "Homeworks")
     def open_hw_menu(m):
+        if not ensure_registration(m.chat.id, m.from_user.id):
+            return
         kb = hw_main_kb(m.from_user.id)
         bot.send_message(m.chat.id, "قائمة Homeworks:", reply_markup=kb)
         logger.info(f"Opened Homeworks menu for user {m.from_user.id} in chat {m.chat.id}")
@@ -540,6 +546,8 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
     
     @bot.message_handler(func=lambda msg: msg.text == "Weekly Schedule")
     def open_weekly_schedule_menu(m):
+        if not ensure_registration(m.chat.id, m.from_user.id):
+            return
         kb = weekly_schedule_group_kb()
         bot.send_message(m.chat.id, "Select your Group", reply_markup=kb)
         logger.info(f"Opened Weekly Schedule menu for user {m.from_user.id} in chat {m.chat.id}")
@@ -554,6 +562,12 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
         data = c.data
         chat_id = c.message.chat.id if c.message else None
         logger.info(f"[DEBUG CALLBACK] {datetime.now().isoformat()} | from={uid} | chat={chat_id} | data={data}")
+
+        if data != CALLBACK_HW_CANCEL and chat_id is not None:
+            if not ensure_registration(chat_id, uid):
+                bot.answer_callback_query(c.id)
+                bot.send_message(chat_id, "يرجى إكمال التسجيل أولاً باستخدام /start.", reply_markup=main_menu_kb())
+                return
 
         
         if data == CALLBACK_HW_CANCEL:
@@ -2250,34 +2264,85 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
             logger.exception("Failed scheduling reminders after insert")
 
     
-    def handle_nickname(msg):
+    def handle_name_input(msg):
         chat_id = msg.chat.id
         text = (msg.text or "").strip()
-        with _pending_nickname_lock:
-            pending = _pending_nickname.get(chat_id)
-        if is_cancel_text(text) or not pending:
-            with _pending_nickname_lock:
-                _pending_nickname.pop(chat_id, None)
+        with _pending_registration_lock:
+            pending = _pending_registration.get(chat_id)
+        if is_cancel_text(text) or not pending or not isinstance(pending, dict):
+            with _pending_registration_lock:
+                _pending_registration.pop(chat_id, None)
             bot.send_message(chat_id, "تم إلغاء إدخال الاسم.", reply_markup=main_menu_kb())
+            return
+        if pending.get("step") != "name":
+            bot.send_message(chat_id, "رجاءً اكتب /start لإعادة بدء التسجيل.", reply_markup=main_menu_kb())
             return
 
         is_valid, error = validate_text_input(text, MAX_INPUT_LENGTH)
         if not is_valid:
             bot.send_message(chat_id, f"خطأ: {error}. أرسل الاسم مرة أخرى (أو 'إلغاء'):", reply_markup=cancel_inline_kb())
-            bot.register_next_step_handler(msg, handle_nickname)
+            bot.register_next_step_handler(msg, handle_name_input)
             return
 
         display_name = text
         user_id = msg.from_user.id
-        
+
+        with _pending_registration_lock:
+            _pending_registration[chat_id] = {"step": "group", "display_name": display_name}
+        msg_group = bot.send_message(
+            chat_id,
+            "✅ تم حفظ الاسم.\n\nالآن أرسل رقم المجموعة (مثال: 01 أو 02 أو 03 أو 04):",
+            reply_markup=cancel_inline_kb()
+        )
+        bot.register_next_step_handler(msg_group, handle_group_input)
+
+    def handle_group_input(msg):
+        chat_id = msg.chat.id
+        text = (msg.text or "").strip()
+        with _pending_registration_lock:
+            pending = _pending_registration.get(chat_id)
+        if is_cancel_text(text) or not pending or not isinstance(pending, dict):
+            with _pending_registration_lock:
+                _pending_registration.pop(chat_id, None)
+            bot.send_message(chat_id, "تم إلغاء إدخال المجموعة.", reply_markup=main_menu_kb())
+            return
+        if pending.get("step") != "group":
+            bot.send_message(chat_id, "رجاءً أرسل اسمك أولاً عبر /start.", reply_markup=main_menu_kb())
+            return
+
+        is_valid, error = validate_text_input(text, MAX_INPUT_LENGTH)
+        if not is_valid:
+            msg_retry = bot.send_message(chat_id, f"خطأ: {error}. أرسل المجموعة مرة أخرى (أو 'إلغاء'):", reply_markup=cancel_inline_kb())
+            bot.register_next_step_handler(msg_retry, handle_group_input)
+            return
+
+        display_name = pending.get("display_name")
+        group_number = text
+        user_id = msg.from_user.id
+
         with db_connection() as conn_local:
-            update_user_display_name(conn_local, user_id, display_name)
+            update_user_display_name(conn_local, user_id, display_name, group_number=group_number)
 
-        with _pending_nickname_lock:
-            _pending_nickname.pop(chat_id, None)
+        with _pending_registration_lock:
+            _pending_registration.pop(chat_id, None)
 
-        bot.send_message(chat_id, f"شكرًا — تم حفظ اسم العرض: {display_name}", reply_markup=main_menu_kb())
-        logger.info(f"User {user_id} set display_name={display_name}")
+        bot.send_message(chat_id, f"شكرًا — تم حفظ بياناتك: {display_name} (المجموعة {group_number}).", reply_markup=main_menu_kb())
+        logger.info(f"User {user_id} set display_name={display_name} group={group_number}")
+
+        if ADMIN_IDS:
+            safe_display_name = html.escape(display_name or "")
+            safe_group_number = html.escape(group_number or "")
+            admin_message = (
+                "🆕 تسجيل مستخدم جديد\n"
+                f"الاسم: {safe_display_name}\n"
+                f"المجموعة: {safe_group_number}\n"
+                f"user_id: {user_id}"
+            )
+            for admin_id in ADMIN_IDS:
+                try:
+                    bot.send_message(admin_id, admin_message, parse_mode="HTML")
+                except Exception:
+                    logger.exception("Failed to notify admin about registration")
 
     
     def hw_edit_handle_field(msg, hw_id, field):
