@@ -4,9 +4,4 @@ SQLAlchemy>=2.0.0
 python-dotenv>=1.0.0
 Flask>=2.0.0
 pytz
-APScheduler
-Flask
-pyTelegramBotAPI
-python-dotenv
-pytz
-SQLAlchemy
+psycopg2-binary>=2.9.0

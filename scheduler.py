@@ -15,6 +15,11 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.jobstores.base import JobLookupError
 from apscheduler.jobstores.memory import MemoryJobStore
 
+# Import database adapter
+from db import get_conn
+from db_adapter import close_conn
+from db_config import DB_TYPE
+
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
@@ -47,13 +52,22 @@ except ImportError:
 def send_hw_reminder(hw_id: int, days_before: int, db_path: str):
     global scheduler_bot
     try:
-        conn = sqlite3.connect(db_path)
-        conn.row_factory = sqlite3.Row
+        conn = get_conn(db_path)
         cur = conn.cursor()
-        cur.execute("SELECT * FROM homeworks WHERE id = ?", (hw_id,))
+        
+        placeholder = "%s" if DB_TYPE == "postgresql" else "?"
+        
+        if DB_TYPE == "postgresql":
+            import psycopg2.extras
+            cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            cur.execute(f"SELECT * FROM homeworks WHERE id = {placeholder}", (hw_id,))
+        else:
+            conn.row_factory = sqlite3.Row
+            cur.execute(f"SELECT * FROM homeworks WHERE id = {placeholder}", (hw_id,))
+        
         row = cur.fetchone()
         if not row:
-            conn.close()
+            close_conn(conn)
             logger.info("send_hw_reminder: no row for hw_id=%s", hw_id)
             return
         
@@ -91,7 +105,7 @@ def send_hw_reminder(hw_id: int, days_before: int, db_path: str):
             try:
                 cur.execute("SELECT user_id FROM users")
                 user_rows = cur.fetchall()
-                recipients = [r[0] for r in user_rows if r[0] is not None]
+                recipients = [r[0] if isinstance(r, tuple) else r['user_id'] for r in user_rows if (r[0] if isinstance(r, tuple) else r['user_id']) is not None]
                 if not recipients:
                     
                     logger.warning("send_hw_reminder: no registered users found, sending to chat_id=%s", target_chat)
@@ -111,7 +125,8 @@ def send_hw_reminder(hw_id: int, days_before: int, db_path: str):
                 
                 
                 if isinstance(recip, int) and recip > 0:  
-                    cur.execute("SELECT 1 FROM homework_completions WHERE hw_id = ? AND user_id = ?", (hw_id, recip))
+                    placeholder = "%s" if DB_TYPE == "postgresql" else "?"
+                    cur.execute(f"SELECT 1 FROM homework_completions WHERE hw_id = {placeholder} AND user_id = {placeholder}", (hw_id, recip))
                     if cur.fetchone() is not None:
                         logger.info("send_hw_reminder: user_id=%s already completed hw_id=%s, skipping", recip, hw_id)
                         continue
@@ -146,7 +161,7 @@ def send_hw_reminder(hw_id: int, days_before: int, db_path: str):
                 logger.info("send_hw_reminder: sent hw_id=%s to recip=%s", hw_id, recip)
             except Exception as e:
                 logger.exception("send_hw_reminder: failed to send hw_id=%s to recip=%s — %s", hw_id, recip, e)
-        conn.close()
+        close_conn(conn)
     except Exception:
         logger.exception("send_hw_reminder: unexpected error for hw_id=%s", hw_id)
 
@@ -413,12 +428,21 @@ class SchedulerManager:
 
     def bootstrap_all(self):
         try:
-            conn = sqlite3.connect(self.db_path)
-            conn.row_factory = sqlite3.Row
+            conn = get_conn(self.db_path)
             cur = conn.cursor()
             
+            placeholder = "%s" if DB_TYPE == "postgresql" else "?"
             
-            cur.execute("SELECT * FROM homeworks WHERE done = 0")
+            # For PostgreSQL, set up row factory
+            if DB_TYPE == "postgresql":
+                import psycopg2.extras
+                cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+                cur.execute("SELECT * FROM homeworks WHERE done = 0")
+            else:
+                conn.row_factory = sqlite3.Row
+                cur = conn.cursor()
+                cur.execute("SELECT * FROM homeworks WHERE done = 0")
+            
             rows = cur.fetchall()
             for r in rows:
                 try:
@@ -447,9 +471,11 @@ class SchedulerManager:
             except Exception:
                 logger.exception("Failed to bootstrap custom reminders")
             
-            conn.close()
-            backup_db_once(self.db_path, self.backup_dir)
-            self.schedule_daily_backup(hour=3, minute=0)
+            close_conn(conn)
+            # Only backup SQLite databases
+            if DB_TYPE == "sqlite":
+                backup_db_once(self.db_path, self.backup_dir)
+                self.schedule_daily_backup(hour=3, minute=0)
             logger.info("Bootstrap completed — scheduled existing reminders and backups.")
         except Exception:
             logger.exception("Failed during bootstrap_all")
