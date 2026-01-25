@@ -16,6 +16,7 @@ from db import (
     insert_homework, get_homework, get_all_homeworks, delete_homework,
     mark_done, mark_undone, is_homework_done_for_user, update_field, register_user, update_user_display_name,
     is_user_registered, is_user_registration_complete, get_all_registered_user_ids, get_user_display_info,
+    get_all_registered_users,
     insert_custom_reminder, get_custom_reminder, get_all_custom_reminders_for_user, delete_custom_reminder,
     mark_custom_reminder_done, mark_custom_reminder_undone, is_custom_reminder_done_for_user,
     get_notification_setting, set_notification_setting, enable_all_notifications, disable_all_notifications,
@@ -579,6 +580,54 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
         except Exception:
             logger.exception("Failed in /gettopic")
             bot.send_message(m.chat.id, "فشل الحصول على معلومات الموضوع — راجع اللوغ.")
+
+    @bot.message_handler(commands=['students'])
+    def cmd_students(m):
+        """Admin-only command to list all registered students with their names and IDs."""
+        if not is_admin(m.from_user.id):
+            bot.send_message(m.chat.id, "⛔ هذا الأمر متاح فقط للمشرفين.")
+            return
+        
+        try:
+            with db_connection() as conn_local:
+                users = get_all_registered_users(conn_local)
+            
+            if not users:
+                bot.send_message(m.chat.id, "📋 لا يوجد طلاب مسجلين حالياً.", reply_markup=main_menu_kb())
+                return
+            
+            # Build the message
+            lines = [f"📋 **قائمة الطلاب المسجلين ({len(users)} طالب):**\n"]
+            for i, user in enumerate(users, 1):
+                user_id = user['user_id']
+                full_name = user['full_name'] or "غير محدد"
+                lines.append(f"{i}. {full_name} — `{user_id}`")
+            
+            message_text = "\n".join(lines)
+            
+            # Telegram has a 4096 character limit per message
+            if len(message_text) <= 4096:
+                bot.send_message(m.chat.id, message_text, parse_mode="Markdown", reply_markup=main_menu_kb())
+            else:
+                # Split into multiple messages if needed
+                chunks = []
+                current_chunk = lines[0] + "\n"
+                for line in lines[1:]:
+                    if len(current_chunk) + len(line) + 1 > 4000:
+                        chunks.append(current_chunk)
+                        current_chunk = ""
+                    current_chunk += line + "\n"
+                if current_chunk:
+                    chunks.append(current_chunk)
+                
+                for chunk in chunks:
+                    bot.send_message(m.chat.id, chunk, parse_mode="Markdown")
+                bot.send_message(m.chat.id, "✅ تم عرض جميع الطلاب.", reply_markup=main_menu_kb())
+            
+            logger.info(f"Admin {m.from_user.id} listed all {len(users)} registered students")
+        except Exception:
+            logger.exception("Failed to list students")
+            bot.send_message(m.chat.id, "❌ حدث خطأ أثناء جلب قائمة الطلاب.")
 
     def send_faq_list(chat_id: int):
         with db_connection() as conn_local:

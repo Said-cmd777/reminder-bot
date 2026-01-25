@@ -496,6 +496,44 @@ def get_all_registered_user_ids(conn) -> List[int]:
         return []
 
 
+def get_all_registered_users(conn) -> List[dict]:
+    """
+    Get all registered users with their full name and user_id.
+    
+    Returns:
+        List of dicts with keys: user_id, display_name, first_name, last_name
+    """
+    ensure_tables(conn)
+    cur = conn.cursor()
+    
+    try:
+        cur.execute("SELECT user_id, display_name, first_name, last_name FROM users ORDER BY user_id")
+        rows = cur.fetchall()
+        result = []
+        for row in rows:
+            user_id = row[0]
+            display_name = row[1]
+            first_name = row[2]
+            last_name = row[3]
+            
+            # Build the full name from available data
+            if display_name:
+                full_name = display_name
+            elif first_name or last_name:
+                full_name = f"{first_name or ''} {last_name or ''}".strip()
+            else:
+                full_name = None
+            
+            result.append({
+                'user_id': user_id,
+                'full_name': full_name
+            })
+        return result
+    except Exception:
+        logger.exception("Error getting all registered users")
+        return []
+
+
 def insert_custom_reminder(conn, user_id: int, text: str, reminder_datetime: str) -> int:
     """Insert a custom reminder for a user."""
     ensure_tables(conn)
