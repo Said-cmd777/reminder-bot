@@ -606,17 +606,19 @@ def register_handlers(bot: telebot.TeleBot, sch_mgr):
             message_text = "\n".join(lines)
             
             # Telegram has a 4096 character limit per message
-            if len(message_text) <= 4096:
+            telegram_msg_limit = 4096
+            if len(message_text) <= telegram_msg_limit:
                 bot.send_message(m.chat.id, message_text, parse_mode="Markdown", reply_markup=main_menu_kb())
             else:
                 # Split into multiple messages if needed
                 chunks = []
                 current_chunk = lines[0] + "\n"
                 for line in lines[1:]:
-                    if len(current_chunk) + len(line) + 1 > 4000:
+                    if len(current_chunk) + len(line) + 1 > telegram_msg_limit - 100:  # Leave some margin
                         chunks.append(current_chunk)
-                        current_chunk = ""
-                    current_chunk += line + "\n"
+                        current_chunk = line + "\n"  # Start new chunk with the current line
+                    else:
+                        current_chunk += line + "\n"
                 if current_chunk:
                     chunks.append(current_chunk)
                 
